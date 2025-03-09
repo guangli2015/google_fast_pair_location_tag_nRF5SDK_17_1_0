@@ -92,7 +92,40 @@ NRF_LOG_MODULE_REGISTER();
 #define WRITE_BIT(var, bit, set) \
 	((var) = (set) ? ((var) | BIT(bit)) : ((var) & ~BIT(bit)))
 
+/* Beacon Actions characteristic. */
+#define BEACON_ACTIONS_DATA_ID_LEN           1
+#define BEACON_ACTIONS_DATA_LENGTH_LEN       1
 
+#define BEACON_ACTIONS_HEADER_LEN       \
+	(BEACON_ACTIONS_DATA_ID_LEN +   \
+	BEACON_ACTIONS_DATA_LENGTH_LEN)
+
+
+#define BT_FAST_PAIR_FMDN_VERSION_MAJOR 0x01
+#define FP_FMDN_AUTH_SEG_LEN 8
+#define BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN 8
+#define BEACON_PARAMETERS_REQ_PAYLOAD_LEN FP_FMDN_AUTH_SEG_LEN
+#define BEACON_ACTIONS_RSP_AUTH_SEG_LEN FP_FMDN_AUTH_SEG_LEN
+/* Byte length of fields in the Beacon Parameters response. */
+#define BEACON_PARAMETERS_RSP_TX_POWER_LEN     1
+#define BEACON_PARAMETERS_RSP_CLOCK_LEN        4
+#define BEACON_PARAMETERS_RSP_ECC_TYPE_LEN     1
+#define BEACON_PARAMETERS_RSP_RINGING_COMP_LEN 1
+#define BEACON_PARAMETERS_RSP_RINGING_CAP_LEN  1
+#define BEACON_PARAMETERS_RSP_PADDING_LEN      8
+#define BEACON_PARAMETERS_RSP_ADD_DATA_LEN       \
+	(BEACON_PARAMETERS_RSP_TX_POWER_LEN +    \
+	BEACON_PARAMETERS_RSP_CLOCK_LEN +        \
+	BEACON_PARAMETERS_RSP_ECC_TYPE_LEN +     \
+	BEACON_PARAMETERS_RSP_RINGING_COMP_LEN + \
+	BEACON_PARAMETERS_RSP_RINGING_CAP_LEN +  \
+	BEACON_PARAMETERS_RSP_PADDING_LEN)
+#define BEACON_PARAMETERS_RSP_PAYLOAD_LEN  \
+	(BEACON_ACTIONS_RSP_AUTH_SEG_LEN + \
+	BEACON_PARAMETERS_RSP_ADD_DATA_LEN)
+#define BEACON_PARAMETERS_RSP_LEN          \
+	(BEACON_ACTIONS_HEADER_LEN +       \
+	BEACON_PARAMETERS_RSP_PAYLOAD_LEN)
 
 /* Fast Pair message type. */
 enum fp_msg_type {
@@ -116,6 +149,19 @@ enum fp_field_type {
 	FP_FIELD_TYPE_SHOW_PAIRING_UI_INDICATION = 0b0000,
 	FP_FIELD_TYPE_SALT			 = 0b0001,
 	FP_FIELD_TYPE_HIDE_PAIRING_UI_INDICATION = 0b0010,
+};
+
+
+enum beacon_actions_data_id {
+	BEACON_ACTIONS_BEACON_PARAMETERS_READ       = 0x00,
+	BEACON_ACTIONS_PROVISIONING_STATE_READ      = 0x01,
+	BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET   = 0x02,
+	BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR = 0x03,
+	BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_READ  = 0x04,
+	BEACON_ACTIONS_RING                         = 0x05,
+	BEACON_ACTIONS_RINGING_STATE_READ           = 0x06,
+	BEACON_ACTIONS_ACTIVATE_UTP_MODE            = 0x07,
+	BEACON_ACTIONS_DEACTIVATE_UTP_MODE          = 0x08,
 };
 
 typedef struct  {
@@ -156,9 +202,26 @@ struct msg_seekers_passkey {
 	uint32_t passkey;
 };
 
+/** Authentication seed data */
+struct fp_fmdn_auth_data {
+	/** Random Nonce */
+	const uint8_t *Prandom_nonce;
+
+	/** Data ID */
+	uint8_t data_id;
+
+	/** Data Length */
+	uint8_t data_len;
+
+	/** Additional Data */
+	const uint8_t *add_data;
+};
+
 static uint8_t  Anti_Spoofing_AES_Key[NRF_CRYPTO_HASH_SIZE_SHA256];
 extern bool key_pairing_success;
 extern uint8_t dis_passkey[6 + 1];
+
+static uint8_t random_nonce[8];
 //function********************************************************************
 
 static size_t fp_crypto_account_key_filter_size(size_t n)
@@ -723,6 +786,49 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
                       
 
     }
+    else if ((p_evt_write->handle == p_gfp->beacon_actions_handles.value_handle) )
+    {
+       uint8_t data_id;
+       uint8_t data_len;
+       NRF_LOG_INFO("beacon_actions_handles################################\n");
+       data_id = p_evt_write->data[0];
+       data_len = p_evt_write->data[1];
+       switch (data_id) 
+       {
+	case BEACON_ACTIONS_BEACON_PARAMETERS_READ:
+		//res = beacon_parameters_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_PROVISIONING_STATE_READ:
+		//res = provisioning_state_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET:
+		//res = ephemeral_identity_key_set_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR:
+		//res = ephemeral_identity_key_clear_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_READ:
+		//res = ephemeral_identity_key_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_RING:
+		//res = ring_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_RINGING_STATE_READ:
+		//res = ringing_state_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_ACTIVATE_UTP_MODE:
+		//res = activate_utp_mode_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	case BEACON_ACTIONS_DEACTIVATE_UTP_MODE:
+		//res = deactivate_utp_mode_handle(conn, attr, &fmdn_beacon_actions_buf);
+		break;
+	default:
+		NRF_LOG_ERROR("Beacon Actions: unrecognized request: data_id=%d", data_id);
+		
+	}
+                      
+
+    }
     else
     {
         // Do Nothing. This event is not relevant for this service.
@@ -734,13 +840,14 @@ static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
     ble_gatts_evt_rw_authorize_request_t const * evt_rw_auth =
         &p_ble_evt->evt.gatts_evt.params.authorize_request;
 
+    uint8_t rsp[1+8];
     if (evt_rw_auth->type != BLE_GATTS_AUTHORIZE_TYPE_READ)
     {
         // Unexpected operation
-        NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST 222");
+        NRF_LOG_INFO(" W_AUTHORIZE_REQUEST Unexpected operation \n");
         return;
     }
-NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST 111");
+
     /* Update SD GATTS values of appropriate host before SD sends the Read Response */
     if (evt_rw_auth->request.read.handle == p_gfp->beacon_actions_handles.value_handle)
     {
@@ -750,23 +857,31 @@ NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST 111");
             ble_gatts_evt_rw_authorize_request_t const * p_read_auth =
               &p_ble_evt->evt.gatts_evt.params.authorize_request;
 
-            char data=254;
+        NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST readrsp\n");
+
+        err_code = nrf_crypto_rng_vector_generate(random_nonce, 8);
+        if(NRF_SUCCESS != err_code)
+        {
+              NRF_LOG_ERROR("nrf_crypto_rng_vector_generate err %x\n",err_code);
+        }
+        rsp[0] = BT_FAST_PAIR_FMDN_VERSION_MAJOR;
+        memcpy(rsp+1,random_nonce,8);
+
 
         memset(&auth_read_params, 0, sizeof(auth_read_params));
-
         auth_read_params.type                    = BLE_GATTS_AUTHORIZE_TYPE_READ;
         auth_read_params.params.read.gatt_status = BLE_GATT_STATUS_SUCCESS;
         auth_read_params.params.read.offset      = p_read_auth->request.read.offset;
-        auth_read_params.params.read.len         = sizeof(uint8_t);
-        auth_read_params.params.read.p_data      = &data;
+        auth_read_params.params.read.len         = 9;
+        auth_read_params.params.read.p_data      = &rsp;
         auth_read_params.params.read.update      = 1;
 
         err_code = sd_ble_gatts_rw_authorize_reply(p_ble_evt->evt.gap_evt.conn_handle,
                                                    &auth_read_params);
-                                                   NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST reply \n");
-                                                   
-        
-    
+        if(NRF_SUCCESS != err_code)
+        {
+              NRF_LOG_ERROR("sd_ble_gatts_rw_authorize_reply err %x\n",err_code);
+        }
     }
 }
 
@@ -1074,7 +1189,7 @@ int fp_adv_data_fill_non_discoverable(uint8_t * service_data_nondis , size_t  * 
     err_code = nrf_crypto_rng_vector_generate(m_random_vector, 2);
     if(NRF_SUCCESS != err_code)
     {
-        NRF_LOG_ERROR("nrf_crypto_hash_update err %x\n",err_code);
+        NRF_LOG_ERROR("nrf_crypto_rng_vector_generate err %x\n",err_code);
     }
 
     //test
@@ -1088,7 +1203,7 @@ NRF_LOG_INFO("salt ** %x\n",salt);
 						   account_key_cnt, salt);
     if(NRF_SUCCESS != err_code)
     {
-        NRF_LOG_ERROR("nrf_crypto_hash_update err %x\n",err_code);
+        NRF_LOG_ERROR("fp_crypto_account_key_filter err %x\n",err_code);
     }
     service_data_nondis[2+ak_filter_size] = (sizeof(salt) << 4) | (FP_FIELD_TYPE_SALT);
     sys_put_be16(salt, &service_data_nondis[2+ak_filter_size+1]);
@@ -1101,3 +1216,110 @@ NRF_LOG_INFO("salt ** %x\n",salt);
 }
 
 
+static void auth_data_encode(uint8_t *auth_data_buf,
+			     const struct fp_fmdn_auth_data *auth_data,size_t * plen)
+{
+	__ASSERT(auth_data->data_len >= FP_FMDN_AUTH_SEG_LEN,
+		"Authentication: incorrect Data Length parameter");
+
+	/* Prepare Authentication data input for HMAC-SHA256 operation:
+	 * (Protocol Major Version || random_nonce || Data ID || Data length ||
+	 * Additional data).
+	 */
+	
+        *(auth_data_buf+0) = BT_FAST_PAIR_FMDN_VERSION_MAJOR;
+	memcpy(auth_data_buf+1,auth_data->Prandom_nonce,BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN);
+        *(auth_data_buf+1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN) = auth_data->data_id;
+        *(auth_data_buf+1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1) = auth_data->data_len;
+        
+
+	if (auth_data->add_data) {
+		memcpy((auth_data_buf+1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1+1),
+				       auth_data->add_data,
+				       (auth_data->data_len - FP_FMDN_AUTH_SEG_LEN));
+                *plen = 1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1+1+(auth_data->data_len - FP_FMDN_AUTH_SEG_LEN);
+                return;
+	}
+        *plen=1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1+1;
+
+}
+
+static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_buf_len,uint8_t * Pauth_seg)
+{
+
+  ret_code_t            err_code;
+  account_key_t accountkey_array[5]={0};
+  uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
+  size_t local_auth_seg_len = sizeof(local_auth_seg);
+  size_t account_key_cnt = nrf_queue_utilization_get(&account_key_queue);
+  err_code = nrf_queue_read(&account_key_queue,accountkey_array,account_key_cnt);
+  if(NRF_SUCCESS != err_code)
+  {
+     NRF_LOG_ERROR("nrf_queue_read err %x\n",err_code);
+  }
+  for (size_t i=0;i< account_key_cnt ;i++)
+  {
+     err_code = nrf_queue_push(&account_key_queue,(accountkey_array+i));
+     if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_queue_push err %x\n",err_code);
+      }
+  }
+  for (size_t i = 0; i < account_key_cnt; i++) {
+     nrf_crypto_hmac_context_t m_context;
+
+        // Initialize frontend (which also initializes backend).
+    err_code = nrf_crypto_hmac_init(&m_context,
+                                    &g_nrf_crypto_hmac_sha256_info,
+                                    accountkey_array[i].account_key,
+                                    FP_ACCOUNT_KEY_LEN);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_init err %x\n",err_code);
+      }
+    
+
+    // Push all data in one go (could be done repeatedly)
+    err_code = nrf_crypto_hmac_update(&m_context, auth_data_buf, auth_data_buf_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_update err %x\n",err_code);
+      }
+
+    // Finish calculation
+    err_code = nrf_crypto_hmac_finalize(&m_context, local_auth_seg, &local_auth_seg_len);
+     if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
+      }
+   
+   if(!memcmp(local_auth_seg, Pauth_seg, FP_FMDN_AUTH_SEG_LEN))
+   {
+      return true;
+   }
+  }
+  return false;
+}
+static int beacon_parameters_read_handle(uint8_t *data,uint16_t len)
+{
+    uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
+    uint8_t auth_data_buf[100];
+    size_t auth_data_buf_len = 0;
+    static const uint8_t req_data_len = BEACON_PARAMETERS_REQ_PAYLOAD_LEN;
+  static const uint8_t rsp_data_len = BEACON_PARAMETERS_RSP_PAYLOAD_LEN;
+    struct fp_fmdn_auth_data auth_data;
+    memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
+
+    memset(&auth_data, 0, sizeof(auth_data));
+    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.data_id = BEACON_ACTIONS_BEACON_PARAMETERS_READ;
+    auth_data.data_len = req_data_len;
+
+    auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+
+    account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
+
+
+
+
+}
