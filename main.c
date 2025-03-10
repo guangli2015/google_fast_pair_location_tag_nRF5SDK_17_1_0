@@ -1548,7 +1548,7 @@ static void advertising_init(void)
     uint32_t               err_code;
     uint8_t                adv_flags;
     ble_advertising_init_t init;
-    uint8_t service_data[] = {0x2a, 0x41, 0x0b}; // Example service data
+    uint8_t service_data[] = {0x4a, 0x43, 0x6b}; // Example service data
     int8_t tx_power = 0xf2;
 
     memset(&init, 0, sizeof(init));

@@ -106,6 +106,7 @@ NRF_LOG_MODULE_REGISTER();
 #define BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN 8
 #define BEACON_PARAMETERS_REQ_PAYLOAD_LEN FP_FMDN_AUTH_SEG_LEN
 #define BEACON_ACTIONS_RSP_AUTH_SEG_LEN FP_FMDN_AUTH_SEG_LEN
+
 /* Byte length of fields in the Beacon Parameters response. */
 #define BEACON_PARAMETERS_RSP_TX_POWER_LEN     1
 #define BEACON_PARAMETERS_RSP_CLOCK_LEN        4
@@ -126,6 +127,22 @@ NRF_LOG_MODULE_REGISTER();
 #define BEACON_PARAMETERS_RSP_LEN          \
 	(BEACON_ACTIONS_HEADER_LEN +       \
 	BEACON_PARAMETERS_RSP_PAYLOAD_LEN)
+
+
+/* Byte length of fields in the Provisioning State response. */
+#define PROVISIONING_STATE_REQ_PAYLOAD_LEN FP_FMDN_AUTH_SEG_LEN
+
+#define PROVISIONING_STATE_RSP_BITFIELD_LEN 1
+#define PROVISIONING_STATE_RSP_EID_LEN      20
+#define PROVISIONING_STATE_RSP_ADD_DATA_LEN    \
+	(PROVISIONING_STATE_RSP_BITFIELD_LEN + \
+	PROVISIONING_STATE_RSP_EID_LEN)
+#define PROVISIONING_STATE_RSP_PAYLOAD_LEN   \
+	(BEACON_ACTIONS_RSP_AUTH_SEG_LEN +   \
+	PROVISIONING_STATE_RSP_ADD_DATA_LEN)
+#define PROVISIONING_STATE_RSP_LEN          \
+	(BEACON_ACTIONS_HEADER_LEN +        \
+	PROVISIONING_STATE_RSP_PAYLOAD_LEN)
 
 /* Fast Pair message type. */
 enum fp_msg_type {
@@ -172,8 +189,9 @@ NRF_QUEUE_DEF(account_key_t, account_key_queue, ACCOUNT_KEYS_COUNT, NRF_QUEUE_MO
 
 //struct account_keys account_key_arr[ACCOUNT_KEYS_COUNT];
 
-static uint8_t anti_spoofing_priv_key[FP_REG_DATA_ANTI_SPOOFING_PRIV_KEY_LEN]={0x52 , 0x7a , 0x21 , 0xfa , 0x7c , 0x9c , 0x2b , 0xf6 , 0x49 , 0xee , 0x4d , 0xdd , 0x1e , 0xc7 , 0x5c , 0x36 , 0x98 , 0x8f , 0xd5 , 0x27 , 0xce , 0xcb , 0x43 , 0xff , 0x2f , 0x1e , 0x57 , 0x8b , 0x1c , 0x98 , 0xa2 , 0x2b};
+//static uint8_t anti_spoofing_priv_key[FP_REG_DATA_ANTI_SPOOFING_PRIV_KEY_LEN]={0x52 , 0x7a , 0x21 , 0xfa , 0x7c , 0x9c , 0x2b , 0xf6 , 0x49 , 0xee , 0x4d , 0xdd , 0x1e , 0xc7 , 0x5c , 0x36 , 0x98 , 0x8f , 0xd5 , 0x27 , 0xce , 0xcb , 0x43 , 0xff , 0x2f , 0x1e , 0x57 , 0x8b , 0x1c , 0x98 , 0xa2 , 0x2b};
 
+static uint8_t anti_spoofing_priv_key[FP_REG_DATA_ANTI_SPOOFING_PRIV_KEY_LEN] = {0xae , 0x27 , 0xb5 , 0xd0 , 0xe , 0xce , 0x36 , 0xac , 0x1d , 0xef , 0xb5 , 0x66 , 0x93 , 0x11 , 0xac , 0x6e , 0x53 , 0xd4 , 0x6c , 0xcb , 0x77 , 0xf3 , 0x8a , 0xa3 , 0xe , 0x7 , 0x4 , 0x27 , 0xf7 , 0x2d , 0x4f , 0xd6};
 struct msg_kbp_req_data {
 	uint8_t seeker_address[6];
 };
@@ -223,6 +241,8 @@ extern uint8_t dis_passkey[6 + 1];
 
 static uint8_t random_nonce[8];
 //function********************************************************************
+static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
+static int beacon_parameters_read_handle(uint8_t *data,uint16_t len);
 
 static size_t fp_crypto_account_key_filter_size(size_t n)
 {
@@ -715,10 +735,10 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
     {
 
         NRF_LOG_INFO("account_key_handles################################\n");
-        if( false == key_pairing_success)
-        {
-          return ;
-        }
+        //if( false == key_pairing_success)
+        //{
+        //  return ;
+        //}
         nrf_crypto_aes_info_t const * p_ecb_info_accountkey;
    
         nrf_crypto_aes_context_t      ecb_decr_ctx_accountkey;
@@ -752,7 +772,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         {
           NRF_LOG_ERROR("nrf_crypto_aes_finalize err %x\n",err_code);
         }
-
+  print_hex("acckeyadd",raw_req_accountkey,16);
         if(0x04 != raw_req_accountkey[0])
         {
           return;
@@ -763,6 +783,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         {
           data.account_key[i] = raw_req_accountkey[i];
         }
+        print_hex("acckeyadd",raw_req_accountkey,16);
 //test
         //uint8_t testacc[16]={0x4 , 0xa6 , 0xef , 0x67 , 0x5a , 0xb8 , 0xac , 0x2d , 0xd4 , 0x67 , 0x4f , 0xe8 , 0xbf , 0x6c , 0x4f , 0xf5};
         // for(int i=0;i<FP_CRYPTO_AES128_BLOCK_LEN;i++)
@@ -796,10 +817,10 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
        switch (data_id) 
        {
 	case BEACON_ACTIONS_BEACON_PARAMETERS_READ:
-		//res = beacon_parameters_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+		 beacon_parameters_read_handle(p_evt_write->data,p_evt_write->len);
 		break;
 	case BEACON_ACTIONS_PROVISIONING_STATE_READ:
-		//res = provisioning_state_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len);
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET:
 		//res = ephemeral_identity_key_set_handle(conn, attr, &fmdn_beacon_actions_buf);
@@ -1219,8 +1240,8 @@ NRF_LOG_INFO("salt ** %x\n",salt);
 static void auth_data_encode(uint8_t *auth_data_buf,
 			     const struct fp_fmdn_auth_data *auth_data,size_t * plen)
 {
-	__ASSERT(auth_data->data_len >= FP_FMDN_AUTH_SEG_LEN,
-		"Authentication: incorrect Data Length parameter");
+	//ASSERT(auth_data->data_len >= FP_FMDN_AUTH_SEG_LEN,
+	//	"Authentication: incorrect Data Length parameter");
 
 	/* Prepare Authentication data input for HMAC-SHA256 operation:
 	 * (Protocol Major Version || random_nonce || Data ID || Data length ||
@@ -1242,6 +1263,8 @@ static void auth_data_encode(uint8_t *auth_data_buf,
 	}
         *plen=1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1+1;
 
+        print_hex(" auth_data_buf: ", auth_data_buf, *plen);
+
 }
 
 static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_buf_len,uint8_t * Pauth_seg)
@@ -1252,6 +1275,7 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
   uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
   size_t local_auth_seg_len = sizeof(local_auth_seg);
   size_t account_key_cnt = nrf_queue_utilization_get(&account_key_queue);
+  NRF_LOG_INFO("account_key_cnt  %x\n",account_key_cnt);
   err_code = nrf_queue_read(&account_key_queue,accountkey_array,account_key_cnt);
   if(NRF_SUCCESS != err_code)
   {
@@ -1265,6 +1289,8 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
         NRF_LOG_ERROR("nrf_queue_push err %x\n",err_code);
       }
   }
+
+   print_hex(" accountkey_array[0].account_key: ", accountkey_array[0].account_key, 16);
   for (size_t i = 0; i < account_key_cnt; i++) {
      nrf_crypto_hmac_context_t m_context;
 
@@ -1292,7 +1318,8 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
       {
         NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
       }
-   
+    print_hex(" Pauth_seg ", Pauth_seg, 8);
+    print_hex(" local_auth_seg ", local_auth_seg, 8);
    if(!memcmp(local_auth_seg, Pauth_seg, FP_FMDN_AUTH_SEG_LEN))
    {
       return true;
@@ -1305,6 +1332,7 @@ static int beacon_parameters_read_handle(uint8_t *data,uint16_t len)
     uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
     uint8_t auth_data_buf[100];
     size_t auth_data_buf_len = 0;
+    bool result =false;
     static const uint8_t req_data_len = BEACON_PARAMETERS_REQ_PAYLOAD_LEN;
   static const uint8_t rsp_data_len = BEACON_PARAMETERS_RSP_PAYLOAD_LEN;
     struct fp_fmdn_auth_data auth_data;
@@ -1317,8 +1345,40 @@ static int beacon_parameters_read_handle(uint8_t *data,uint16_t len)
 
     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
 
-    account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
+    result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
 
+    NRF_LOG_INFO("beacon_parameters_read_handle result %x\n",result);
+
+
+
+}
+static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
+{
+    uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
+    uint8_t auth_data_buf[100];
+    size_t auth_data_buf_len = 0;
+    bool result =false;
+    bool provisioned = false;
+    static const uint8_t req_data_len = PROVISIONING_STATE_REQ_PAYLOAD_LEN;
+    uint8_t rsp_data_len;
+    struct fp_fmdn_auth_data auth_data;
+    memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
+
+    memset(&auth_data, 0, sizeof(auth_data));
+    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.data_id = BEACON_ACTIONS_PROVISIONING_STATE_READ;
+    auth_data.data_len = req_data_len;
+
+    auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+    print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
+     print_hex(" auth_segget ", auth_seg, 8);
+    result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
+
+    NRF_LOG_INFO("provisioning_state_read_handle result %x\n",result);
+
+    /* Prepare response payload. */
+	rsp_data_len = provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
+		(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
 
 
 
