@@ -129,9 +129,9 @@ NRF_LOG_MODULE_REGISTER();
 	BEACON_PARAMETERS_RSP_PAYLOAD_LEN)
 
 
-/* Byte length of fields in the Provisioning State response. */
+/* Byte length of fields in the Provisioning State request. */
 #define PROVISIONING_STATE_REQ_PAYLOAD_LEN FP_FMDN_AUTH_SEG_LEN
-
+/* Byte length of fields in the Provisioning State response. */
 #define PROVISIONING_STATE_RSP_BITFIELD_LEN 1
 #define PROVISIONING_STATE_RSP_EID_LEN      20
 #define PROVISIONING_STATE_RSP_ADD_DATA_LEN    \
@@ -143,6 +143,29 @@ NRF_LOG_MODULE_REGISTER();
 #define PROVISIONING_STATE_RSP_LEN          \
 	(BEACON_ACTIONS_HEADER_LEN +        \
 	PROVISIONING_STATE_RSP_PAYLOAD_LEN)
+
+/* Byte length of the EIK hash field from the Ephemeral Identity Key Set/Clear request. */
+#define EPHEMERAL_IDENTITY_KEY_REQ_EIK_HASH_LEN 8
+
+/* Byte length of fields in the Ephemeral Identity Key Set request. */
+#define EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN 32
+#define EPHEMERAL_IDENTITY_KEY_SET_REQ_UNPROVISIONED_PAYLOAD_LEN \
+	(FP_FMDN_AUTH_SEG_LEN +                  \
+	EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN)
+#define EPHEMERAL_IDENTITY_KEY_SET_REQ_PROVISIONED_PAYLOAD_LEN      \
+	(EPHEMERAL_IDENTITY_KEY_SET_REQ_UNPROVISIONED_PAYLOAD_LEN + \
+	EPHEMERAL_IDENTITY_KEY_REQ_EIK_HASH_LEN)
+
+/* Byte length of fields in the Ephemeral Identity Key Set response. */
+#define EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN \
+	(BEACON_ACTIONS_RSP_AUTH_SEG_LEN)
+#define EPHEMERAL_IDENTITY_KEY_SET_RSP_LEN \
+	(BEACON_ACTIONS_HEADER_LEN +       \
+	EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN)
+
+
+
+
 
 /* Fast Pair message type. */
 enum fp_msg_type {
@@ -240,6 +263,7 @@ extern bool key_pairing_success;
 extern uint8_t dis_passkey[6 + 1];
 
 static uint8_t random_nonce[8];
+static bool beacon_provisioned = false;
 //function********************************************************************
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len);
@@ -1380,6 +1404,31 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
 	rsp_data_len = provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
 		(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
 
+
+
+}
+static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
+{
+    uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
+    const uint8_t req_data_len = provisioned ?
+		EPHEMERAL_IDENTITY_KEY_SET_REQ_PROVISIONED_PAYLOAD_LEN :
+		EPHEMERAL_IDENTITY_KEY_SET_REQ_UNPROVISIONED_PAYLOAD_LEN;
+    static const uint8_t rsp_data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
+    struct fp_fmdn_auth_data auth_data;
+
+    memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
+    memset(&auth_data, 0, sizeof(auth_data));
+    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.data_id = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
+    auth_data.data_len = req_data_len;
+    auth_data.add_data = (data + 2 + FP_FMDN_AUTH_SEG_LEN);
+
+    auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+    print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
+    print_hex(" auth_segget ", auth_seg, 8);
+    result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
+
+    NRF_LOG_INFO("ephemeral_identity_key_set_handle result %x\n",result);
 
 
 }
