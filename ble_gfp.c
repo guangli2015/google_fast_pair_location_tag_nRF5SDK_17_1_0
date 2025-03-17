@@ -48,6 +48,12 @@
 #include "nrf_crypto_error.h"
 #include "nrf_crypto_hash.h"
 #include "nrf_queue.h"
+
+#include "crys_ecpki_kg.h"
+#include "crys_ecpki_domain.h"
+#include "crys_ecpki_build.h"
+#include "crys_ecpki_error.h"
+#include "sns_silib.h"
 #define NRF_LOG_MODULE_NAME ble_gfp
 #if BLE_GFP_CONFIG_LOG_ENABLED
 #define NRF_LOG_LEVEL       BLE_GFP_CONFIG_LOG_LEVEL
@@ -263,7 +269,8 @@ extern bool key_pairing_success;
 extern uint8_t dis_passkey[6 + 1];
 
 static uint8_t random_nonce[8];
-static bool beacon_provisioned = false;
+static volatile bool beacon_provisioned = false;
+static uint8_t owner_account_key[FP_CRYPTO_AES128_BLOCK_LEN];
 //function********************************************************************
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len);
@@ -977,7 +984,7 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
     VERIFY_PARAM_NOT_NULL(p_gfp_init);
  NRF_LOG_INFO("ble_gfp_init################################\n");    // Initialize the service structure.
     p_gfp->data_handler = p_gfp_init->data_handler;
-    
+    //calculate_in_prime();
    //testqueue();
 
    // Add service
@@ -1346,6 +1353,7 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
     print_hex(" local_auth_seg ", local_auth_seg, 8);
    if(!memcmp(local_auth_seg, Pauth_seg, FP_FMDN_AUTH_SEG_LEN))
    {
+      memcpy(owner_account_key,accountkey_array[i].account_key,FP_CRYPTO_AES128_BLOCK_LEN);
       return true;
    }
   }
@@ -1382,7 +1390,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
     uint8_t auth_data_buf[100];
     size_t auth_data_buf_len = 0;
     bool result =false;
-    bool provisioned = false;
+   // bool provisioned = false;
     static const uint8_t req_data_len = PROVISIONING_STATE_REQ_PAYLOAD_LEN;
     uint8_t rsp_data_len;
     struct fp_fmdn_auth_data auth_data;
@@ -1401,20 +1409,26 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
     NRF_LOG_INFO("provisioning_state_read_handle result %x\n",result);
 
     /* Prepare response payload. */
-	rsp_data_len = provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
-		(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
+	//rsp_data_len = provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
+	//	(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
 
 
 
 }
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
 {
+    uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
+    uint8_t auth_data_buf[100];
+    size_t auth_data_buf_len = 0;
+    bool result =false;
     uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
-    const uint8_t req_data_len = provisioned ?
+    uint8_t *encrypted_eik;
+    const uint8_t req_data_len = beacon_provisioned ?
 		EPHEMERAL_IDENTITY_KEY_SET_REQ_PROVISIONED_PAYLOAD_LEN :
 		EPHEMERAL_IDENTITY_KEY_SET_REQ_UNPROVISIONED_PAYLOAD_LEN;
     static const uint8_t rsp_data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
     struct fp_fmdn_auth_data auth_data;
+    ret_code_t            err_code;
 
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
     memset(&auth_data, 0, sizeof(auth_data));
@@ -1429,6 +1443,40 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
     result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
 
     NRF_LOG_INFO("ephemeral_identity_key_set_handle result %x\n",result);
+
+    nrf_crypto_aes_info_t const * p_ecb_info_eik;
+    nrf_crypto_aes_context_t      ecb_decr_ctx_eik;
+    p_ecb_info_eik = &g_nrf_crypto_aes_ecb_128_info;
+    size_t      len_out_eik;
+//    uint8_t raw_req_accountkey[FP_CRYPTO_AES128_BLOCK_LEN];
+    err_code = nrf_crypto_aes_init(&ecb_decr_ctx_eik,
+                                  p_ecb_info_eik,
+                                  NRF_CRYPTO_DECRYPT);
+    if(NRF_SUCCESS != err_code)
+    {
+      NRF_LOG_ERROR("nrf_crypto_aes_init err %x\n",err_code);
+    }
+
+    /* Set encryption and decryption key */
+
+    err_code = nrf_crypto_aes_key_set(&ecb_decr_ctx_eik, owner_account_key);
+    if(NRF_SUCCESS != err_code)
+    {
+      NRF_LOG_ERROR("nrf_crypto_aes_key_set err %x\n",err_code);
+    }
+
+    /* Decrypt blocks */
+    len_out_eik = EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN;
+    err_code = nrf_crypto_aes_finalize(&ecb_decr_ctx_eik,
+                                      (uint8_t *)auth_data.add_data,
+                                      EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN,
+                                      (uint8_t *)new_eik,
+                                      &len_out_eik);
+    if(NRF_SUCCESS != err_code)
+    {
+      NRF_LOG_ERROR("nrf_crypto_aes_finalize err %x\n",err_code);
+    }
+   
 
 
 }
