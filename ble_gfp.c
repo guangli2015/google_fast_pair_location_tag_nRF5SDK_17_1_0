@@ -1444,7 +1444,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
 
 }
 
-void fp_crypto_aes256_ecb_encryptwithEik( uint8_t *output, uint8_t *input)
+static ret_code_t fp_crypto_aes256_ecb_encryptwithEik( uint8_t *output, uint8_t *input)
 {
 //    uint8_t input[] = {
 //    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -1462,26 +1462,27 @@ void fp_crypto_aes256_ecb_encryptwithEik( uint8_t *output, uint8_t *input)
 //};
 
 //  uint8_t encrypted_data[32];
+ret_code_t            err_code;
   mbedtls_aes_context aes_ctx;
      NRF_LOG_INFO("aes ecb 256 encrypt start:\n");
 
     mbedtls_aes_init(&aes_ctx);
     
  
-    int ret = mbedtls_aes_setkey_enc(&aes_ctx, new_eik, 256);
-    if (ret != 0) {
-        NRF_LOG_INFO("Failed to set encryption key, error: %d", ret);
+    err_code = mbedtls_aes_setkey_enc(&aes_ctx, new_eik, 256);
+    if (err_code != 0) {
+        NRF_LOG_INFO("Failed to set encryption key, error: %d", err_code);
         goto cleanup1;
     }
 
     mbedtls_aes_crypt_ecb(&aes_ctx, MBEDTLS_AES_ENCRYPT, input, output);
-    if (ret != 0) {
-           NRF_LOG_INFO("Decryption failed at block %d, error: %d", 16, ret);
+    if (err_code != 0) {
+           NRF_LOG_INFO("Decryption failed at block %d, error: %d", 16, err_code);
             goto cleanup1;
         }
     mbedtls_aes_crypt_ecb(&aes_ctx, MBEDTLS_AES_ENCRYPT, input + 16, output + 16);
-   if (ret != 0) {
-           NRF_LOG_INFO("Decryption failed at block %d, error: %d", 16, ret);
+   if (err_code != 0) {
+           NRF_LOG_INFO("Decryption failed at block %d, error: %d", 16, err_code);
             goto cleanup1;
         }
 
@@ -1491,6 +1492,7 @@ void fp_crypto_aes256_ecb_encryptwithEik( uint8_t *output, uint8_t *input)
     NRF_LOG_INFO("\n");
 cleanup1:
     mbedtls_aes_free(&aes_ctx);
+    return err_code;
   
 
 
@@ -1498,7 +1500,7 @@ cleanup1:
 }
 
 
-void calculate_secp256r1_point(uint8_t *out,uint8_t *mod,uint8_t *in)
+static ret_code_t calculate_secp256r1_point(uint8_t *out,uint8_t *mod,uint8_t *in)
 {
  ret_code_t err_code;
    
@@ -1515,9 +1517,9 @@ mbedtls_ecp_group_init(&grp);
     mbedtls_mpi_init(&out2_mpi);
 
 // 2. Set up the elliptic curve group (secp256r1)
-    int ret = mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
-    if (ret != 0) {
-        NRF_LOG_INFO("Failed to load secp256r1 group: %d\n", ret);
+    err_code = mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
+    if (err_code != 0) {
+        NRF_LOG_INFO("Failed to load secp256r1 group: %d\n", err_code);
         goto cleanup;
     }
 // 3. Convert the input scalar 'in' to an mbedtls bignum
@@ -1527,46 +1529,46 @@ mbedtls_ecp_group_init(&grp);
     //    0x29, 0xf0, 0xa0, 0x45, 0x3f, 0x76, 0x76, 0x7a,
     //    0x29, 0xf0, 0x33, 0xd0, 0x0d, 0xee, 0x96, 0xba,
     //};
-    ret = mbedtls_mpi_read_binary(&in_mpi, in, 32);
-    if (ret != 0) {
-        NRF_LOG_INFO("Failed to read input scalar: %d\n", ret);
+    err_code = mbedtls_mpi_read_binary(&in_mpi, in, 32);
+    if (err_code != 0) {
+        NRF_LOG_INFO("Failed to read input scalar: %d\n", err_code);
         goto cleanup;
     }
 // 4. Calculate in' = in mod n
-    ret = mbedtls_mpi_copy(&n_mpi, &grp.N); // Copy the order of the curve (n)
-    if (ret != 0) {
-        NRF_LOG_INFO("Failed to copy group order: %d\n", ret);
+    err_code = mbedtls_mpi_copy(&n_mpi, &grp.N); // Copy the order of the curve (n)
+    if (err_code != 0) {
+        NRF_LOG_INFO("Failed to copy group order: %d\n", err_code);
         goto cleanup;
     }
-    ret = mbedtls_mpi_mod_mpi(&in_prime_mpi, &in_mpi, &n_mpi);
-    if (ret != 0) {
-        NRF_LOG_INFO("Failed to calculate in mod n: %d\n", ret);
+    err_code = mbedtls_mpi_mod_mpi(&in_prime_mpi, &in_mpi, &n_mpi);
+    if (err_code != 0) {
+        NRF_LOG_INFO("Failed to calculate in mod n: %d\n", err_code);
         goto cleanup;
     }
     // Convert in_prime_mpi to a byte array for comparison
  //   unsigned char in_prime_calculated[32];
-    ret = mbedtls_mpi_write_binary(&in_prime_mpi, mod, 32);
-     if (ret != 0) {
-        NRF_LOG_INFO("Failed to write in_prime to binary: %d\n", ret);
+    err_code = mbedtls_mpi_write_binary(&in_prime_mpi, mod, 32);
+     if (err_code != 0) {
+        NRF_LOG_INFO("Failed to write in_prime to binary: %d\n", err_code);
         goto cleanup;
     }
 
     // 5. Perform scalar multiplication: in' * (Gx, Gy)
-    ret = mbedtls_ecp_mul(&grp, &P, &in_prime_mpi, &grp.G, NULL, NULL);
-    if (ret != 0) {
-        NRF_LOG_INFO("Failed to perform scalar multiplication: %d\n", ret);
+    err_code = mbedtls_ecp_mul(&grp, &P, &in_prime_mpi, &grp.G, NULL, NULL);
+    if (err_code != 0) {
+        NRF_LOG_INFO("Failed to perform scalar multiplication: %d\n", err_code);
         goto cleanup;
     }
 // 6. Extract the x-coordinate (out1)
-     ret = mbedtls_mpi_copy(&out1_mpi, &P.X);
-        if (ret != 0) {
-        NRF_LOG_INFO("Failed to copy out1: %d\n", ret);
+     err_code = mbedtls_mpi_copy(&out1_mpi, &P.X);
+        if (err_code != 0) {
+        NRF_LOG_INFO("Failed to copy out1: %d\n", err_code);
         goto cleanup;
     }
 //      unsigned char out1_calculated[32];
-    ret = mbedtls_mpi_write_binary(&out1_mpi, out, 32);
-     if (ret != 0) {
-        NRF_LOG_INFO("Failed to write out1 to binary: %d\n", ret);
+    err_code = mbedtls_mpi_write_binary(&out1_mpi, out, 32);
+     if (err_code != 0) {
+        NRF_LOG_INFO("Failed to write out1 to binary: %d\n", err_code);
         goto cleanup;
     }
 
@@ -1587,7 +1589,7 @@ mbedtls_ecp_group_init(&grp);
 
 
     
-NRF_LOG_INFO("success&&&&&&&&&&&&&&&&&&&&&&&&&\n", ret);
+NRF_LOG_INFO("success&&&&&&&&&&&&&&&&&&&&&&&&&\n");
 cleanup:
     mbedtls_ecp_group_free(&grp);
     mbedtls_mpi_free(&in_mpi);
@@ -1596,6 +1598,7 @@ cleanup:
     mbedtls_ecp_point_free(&P);
     mbedtls_mpi_free(&out1_mpi);
     mbedtls_mpi_free(&out2_mpi);
+    return err_code;
 
 }
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
@@ -1679,9 +1682,56 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
     print_hex(" eid_seed_buf: ", eid_seed_buf, FMDN_EID_SEED_LEN);
     
     uint8_t encrypted_eid_seed[FP_CRYPTO_AES256_BLOCK_LEN];
-    fp_crypto_aes256_ecb_encryptwithEik(encrypted_eid_seed,eid_seed_buf);
+     err_code = fp_crypto_aes256_ecb_encryptwithEik(encrypted_eid_seed,eid_seed_buf);
+    if(NRF_SUCCESS != err_code)
+    {
+      NRF_LOG_ERROR("fp_crypto_aes256_ecb_encryptwithEik err %x\n",err_code);
+    }
     uint8_t fmdn_eid[32];
-    calculate_secp256r1_point(fmdn_eid,secp_mod_res,encrypted_eid_seed);
+     err_code = calculate_secp256r1_point(fmdn_eid,secp_mod_res,encrypted_eid_seed);
+    if(NRF_SUCCESS != err_code)
+    {
+      NRF_LOG_ERROR("calculate_secp256r1_point err %x\n",err_code);
+    }
+     print_hex(" eid_seed_buf: ", eid_seed_buf, FMDN_EID_SEED_LEN);
+
+     nrf_crypto_hash_context_t   hash_context;
+     //uint8_t  Anti_Spoofing_AES_Key[NRF_CRYPTO_HASH_SIZE_SHA256];
+     size_t digest_len = NRF_CRYPTO_HASH_SIZE_SHA256;
+     uint8_t mod_res_hash[FP_CRYPTO_SHA256_HASH_LEN];
+
+           // Initialize the hash context
+     err_code = nrf_crypto_hash_init(&hash_context, &g_nrf_crypto_hash_sha256_info);
+     if(NRF_SUCCESS != err_code)
+     {
+        NRF_LOG_ERROR("nrf_crypto_hash_init err %x\n",err_code);
+     }
+
+    // Run the update function (this can be run multiples of time if the data is accessible
+    // in smaller chunks, e.g. when received on-air.
+     err_code = nrf_crypto_hash_update(&hash_context, secp_mod_res, FP_FMDN_STATE_EID_LEN);
+     if(NRF_SUCCESS != err_code)
+     {
+        NRF_LOG_ERROR("nrf_crypto_hash_update err %x\n",err_code);
+     }
+
+    // Run the finalize when all data has been fed to the update function.
+    // this gives you the result
+     err_code = nrf_crypto_hash_finalize(&hash_context, mod_res_hash, &digest_len);
+     if(NRF_SUCCESS != err_code)
+     {
+       NRF_LOG_ERROR("nrf_crypto_hash_finalize err %x\n",err_code);
+     }
+     uint8_t fmdn_frame_hashed_flags_xor_operand;
+
+     fmdn_frame_hashed_flags_xor_operand = mod_res_hash[sizeof(mod_res_hash) - 1];
+
+//hashed flags encode
+     uint8_t hashed_flags_seed;
+     uint8_t hashed_flags_byte;
+     hashed_flags_seed = 0;
+     hashed_flags_byte = (hashed_flags_seed ^ fmdn_frame_hashed_flags_xor_operand);
+     
 
     
 
