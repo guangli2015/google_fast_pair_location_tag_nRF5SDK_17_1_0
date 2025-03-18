@@ -1,5 +1,8 @@
 <!DOCTYPE CrossStudio_Project_File>
-<solution Name="ble_app_gfp_input_device_pca10056_s140" target="8" version="2">
+<solution
+  Name="ble_app_gfp_input_device_pca10056_s140"
+  target="8"
+  version="2">
   <project Name="ble_app_gfp_input_device_pca10056_s140">
     <configuration
       Name="Common"
@@ -35,7 +38,7 @@
       project_type="Executable" />
     <folder Name="Segger Startup Files">
       <file file_name="$(StudioDir)/source/thumb_crt0.s" />
-    </folder>d
+    </folder>
     <folder Name="nrf_cc310">
       <file file_name="../../../../../../external/nrf_cc310/lib/cortex-m4/hard-float/libnrf_cc310_0.9.13.a" />
     </folder>
@@ -142,6 +145,10 @@
       <file file_name="../../../../../../components/libraries/crypto/backend/cc310/cc310_backend_mutex.c" />
       <file file_name="../../../../../../components/libraries/crypto/backend/cc310/cc310_backend_rng.c" />
       <file file_name="../../../../../../components/libraries/crypto/backend/cc310/cc310_backend_shared.c" />
+    </folder>
+    <folder Name="nRF_TLS">
+      <file file_name="../../../../../../external/mbedtls/library/aes.c" />
+      <file file_name="../../../../../../external/mbedtls/library/bignum.c" />
     </folder>
     <folder Name="nRF_BLE">
       <file file_name="../../../../../../components/ble/peer_manager/auth_status_tracker.c" />

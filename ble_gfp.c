@@ -54,6 +54,9 @@
 #include "crys_ecpki_build.h"
 #include "crys_ecpki_error.h"
 #include "sns_silib.h"
+#include "mbedtls/ecp.h"
+#include "mbedtls/bignum.h"
+#include "mbedtls/aes.h"
 #define NRF_LOG_MODULE_NAME ble_gfp
 #if BLE_GFP_CONFIG_LOG_ENABLED
 #define NRF_LOG_LEVEL       BLE_GFP_CONFIG_LOG_LEVEL
@@ -72,6 +75,8 @@ NRF_LOG_MODULE_REGISTER();
 #define FP_CRYPTO_ECDH_PUBLIC_KEY_LEN		64U
 /** Length of AES-128 block (128 bits = 16 bytes). */
 #define FP_CRYPTO_AES128_BLOCK_LEN		16U
+/** Length of AES-256 block (256 bits = 32 bytes). */
+#define FP_CRYPTO_AES256_BLOCK_LEN		32U
 /** Length of ECDH shared key (256 bits = 32 bytes). */
 #define FP_CRYPTO_ECDH_SHARED_KEY_LEN		32U
 /** Fast Pair Anti-Spoofing private key length (256 bits = 32 bytes). */
@@ -94,6 +99,7 @@ NRF_LOG_MODULE_REGISTER();
 #define GFP_SERVICE_UUID  0xFE2C
 
 #define BIT(n)  (1UL << (n))
+#define BIT_MASK(n) (BIT(n) - 1UL)
 
 #define WRITE_BIT(var, bit, set) \
 	((var) = (set) ? ((var) | BIT(bit)) : ((var) & ~BIT(bit)))
@@ -169,7 +175,21 @@ NRF_LOG_MODULE_REGISTER();
 	(BEACON_ACTIONS_HEADER_LEN +       \
 	EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN)
 
+/* Constants used to generate a seed for Ephemeral Identifier. */
+#define FMDN_EID_SEED_ROT_PERIOD_EXP   10
+#define FMDN_EID_SEED_PADDING_TYPE_ONE 0xFF
+#define FMDN_EID_SEED_PADDING_TYPE_TWO 0x00
 
+/* Byte length and offset of fields used to generate a seed for Ephemeral Identifier. */
+#define FMDN_EID_SEED_PADDING_LEN        11
+#define FMDN_EID_SEED_ROT_PERIOD_EXP_LEN 1
+#define FMDN_EID_SEED_FMDN_CLOCK_LEN     sizeof(uint32_t)
+#define FMDN_EID_SEED_LEN                    \
+	((FMDN_EID_SEED_PADDING_LEN +        \
+	  FMDN_EID_SEED_ROT_PERIOD_EXP_LEN + \
+	  FMDN_EID_SEED_FMDN_CLOCK_LEN) * 2)
+
+#define FP_FMDN_STATE_EID_LEN 32
 
 
 
@@ -271,6 +291,9 @@ extern uint8_t dis_passkey[6 + 1];
 static uint8_t random_nonce[8];
 static volatile bool beacon_provisioned = false;
 static uint8_t owner_account_key[FP_CRYPTO_AES128_BLOCK_LEN];
+
+extern volatile uint32_t  fmdn_clock;//sec
+static uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
 //function********************************************************************
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len);
@@ -301,6 +324,11 @@ static inline void sys_put_be16(uint16_t val, uint8_t dst[2])
 {
 	dst[0] = val >> 8;
 	dst[1] = val;
+}
+static inline void sys_put_be32(uint32_t val, uint8_t dst[4])
+{
+	sys_put_be16(val >> 16, dst);
+	sys_put_be16(val, &dst[2]);
 }
 static inline uint16_t sys_get_be16(const uint8_t src[2])
 {
@@ -1415,13 +1443,169 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
 
 
 }
+
+void fp_crypto_aes256_ecb_encryptwithEik( uint8_t *output, uint8_t *input)
+{
+//    uint8_t input[] = {
+//    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+//    0xff, 0xff, 0xff, 0x0a, 0x12, 0x34, 0x54, 0x00,
+//    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//    0x00, 0x00, 0x00, 0x0a, 0x12, 0x34, 0x54, 0x00,
+//};
+
+//// ????256???
+//  uint8_t aes_ecb_256_key[] = {
+//    0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+//    0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+//    0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+//    0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+//};
+
+//  uint8_t encrypted_data[32];
+  mbedtls_aes_context aes_ctx;
+     NRF_LOG_INFO("aes ecb 256 encrypt start:\n");
+
+    mbedtls_aes_init(&aes_ctx);
+    
+ 
+    int ret = mbedtls_aes_setkey_enc(&aes_ctx, new_eik, 256);
+    if (ret != 0) {
+        NRF_LOG_INFO("Failed to set encryption key, error: %d", ret);
+        goto cleanup1;
+    }
+
+    mbedtls_aes_crypt_ecb(&aes_ctx, MBEDTLS_AES_ENCRYPT, input, output);
+    if (ret != 0) {
+           NRF_LOG_INFO("Decryption failed at block %d, error: %d", 16, ret);
+            goto cleanup1;
+        }
+    mbedtls_aes_crypt_ecb(&aes_ctx, MBEDTLS_AES_ENCRYPT, input + 16, output + 16);
+   if (ret != 0) {
+           NRF_LOG_INFO("Decryption failed at block %d, error: %d", 16, ret);
+            goto cleanup1;
+        }
+
+    NRF_LOG_INFO("Encrypted data (hex):\n");
+
+    NRF_LOG_HEXDUMP_INFO(output,32);
+    NRF_LOG_INFO("\n");
+cleanup1:
+    mbedtls_aes_free(&aes_ctx);
+  
+
+
+
+}
+
+
+void calculate_secp256r1_point(uint8_t *out,uint8_t *mod,uint8_t *in)
+{
+ ret_code_t err_code;
+   
+    // 1. Initialize mbedtls contexts
+    mbedtls_ecp_group grp;
+    mbedtls_mpi in_mpi, in_prime_mpi, n_mpi, out1_mpi, out2_mpi;
+    mbedtls_ecp_point P;
+mbedtls_ecp_group_init(&grp);
+    mbedtls_mpi_init(&in_mpi);
+    mbedtls_mpi_init(&in_prime_mpi);
+    mbedtls_mpi_init(&n_mpi);
+    mbedtls_ecp_point_init(&P);
+    mbedtls_mpi_init(&out1_mpi);
+    mbedtls_mpi_init(&out2_mpi);
+
+// 2. Set up the elliptic curve group (secp256r1)
+    int ret = mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
+    if (ret != 0) {
+        NRF_LOG_INFO("Failed to load secp256r1 group: %d\n", ret);
+        goto cleanup;
+    }
+// 3. Convert the input scalar 'in' to an mbedtls bignum
+    //unsigned char in[] = {
+    //    0x52, 0xc7, 0x46, 0xbf, 0x4a, 0xb7, 0xc7, 0xc3,
+    //    0x5f, 0x0d, 0xdb, 0x3b, 0x2c, 0x86, 0x32, 0xd1,
+    //    0x29, 0xf0, 0xa0, 0x45, 0x3f, 0x76, 0x76, 0x7a,
+    //    0x29, 0xf0, 0x33, 0xd0, 0x0d, 0xee, 0x96, 0xba,
+    //};
+    ret = mbedtls_mpi_read_binary(&in_mpi, in, 32);
+    if (ret != 0) {
+        NRF_LOG_INFO("Failed to read input scalar: %d\n", ret);
+        goto cleanup;
+    }
+// 4. Calculate in' = in mod n
+    ret = mbedtls_mpi_copy(&n_mpi, &grp.N); // Copy the order of the curve (n)
+    if (ret != 0) {
+        NRF_LOG_INFO("Failed to copy group order: %d\n", ret);
+        goto cleanup;
+    }
+    ret = mbedtls_mpi_mod_mpi(&in_prime_mpi, &in_mpi, &n_mpi);
+    if (ret != 0) {
+        NRF_LOG_INFO("Failed to calculate in mod n: %d\n", ret);
+        goto cleanup;
+    }
+    // Convert in_prime_mpi to a byte array for comparison
+ //   unsigned char in_prime_calculated[32];
+    ret = mbedtls_mpi_write_binary(&in_prime_mpi, mod, 32);
+     if (ret != 0) {
+        NRF_LOG_INFO("Failed to write in_prime to binary: %d\n", ret);
+        goto cleanup;
+    }
+
+    // 5. Perform scalar multiplication: in' * (Gx, Gy)
+    ret = mbedtls_ecp_mul(&grp, &P, &in_prime_mpi, &grp.G, NULL, NULL);
+    if (ret != 0) {
+        NRF_LOG_INFO("Failed to perform scalar multiplication: %d\n", ret);
+        goto cleanup;
+    }
+// 6. Extract the x-coordinate (out1)
+     ret = mbedtls_mpi_copy(&out1_mpi, &P.X);
+        if (ret != 0) {
+        NRF_LOG_INFO("Failed to copy out1: %d\n", ret);
+        goto cleanup;
+    }
+//      unsigned char out1_calculated[32];
+    ret = mbedtls_mpi_write_binary(&out1_mpi, out, 32);
+     if (ret != 0) {
+        NRF_LOG_INFO("Failed to write out1 to binary: %d\n", ret);
+        goto cleanup;
+    }
+
+    // Print the calculated values for comparison
+    NRF_LOG_INFO("111Calculated in':\n");
+    //for (int i = 0; i < 32; i++) {
+    //    NRF_LOG_INFO("0x%02x, ", in_prime_calculated[i]);
+    //}
+    NRF_LOG_HEXDUMP_INFO(mod,32);
+    NRF_LOG_INFO("\n");
+    NRF_LOG_INFO("111Calculated out1:\n");
+    //for (int i = 0; i < 32; i++) {
+    //    printf("0x%02x, ", out1_calculated[i]);
+    //}
+    NRF_LOG_HEXDUMP_INFO(out,32);
+    NRF_LOG_INFO("\n");
+
+
+
+    
+NRF_LOG_INFO("success&&&&&&&&&&&&&&&&&&&&&&&&&\n", ret);
+cleanup:
+    mbedtls_ecp_group_free(&grp);
+    mbedtls_mpi_free(&in_mpi);
+    mbedtls_mpi_free(&in_prime_mpi);
+    mbedtls_mpi_free(&n_mpi);
+    mbedtls_ecp_point_free(&P);
+    mbedtls_mpi_free(&out1_mpi);
+    mbedtls_mpi_free(&out2_mpi);
+
+}
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
 {
     uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
     uint8_t auth_data_buf[100];
+    uint8_t secp_mod_res[FP_FMDN_STATE_EID_LEN];
     size_t auth_data_buf_len = 0;
     bool result =false;
-    uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
+//    uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
     uint8_t *encrypted_eik;
     const uint8_t req_data_len = beacon_provisioned ?
 		EPHEMERAL_IDENTITY_KEY_SET_REQ_PROVISIONED_PAYLOAD_LEN :
@@ -1476,7 +1660,30 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
     {
       NRF_LOG_ERROR("nrf_crypto_aes_finalize err %x\n",err_code);
     }
-   
+
+
+    /* Clear the K lowest bits in the clock value. */
+    fmdn_clock &= ~BIT_MASK(FMDN_EID_SEED_ROT_PERIOD_EXP);
+    uint8_t eid_seed_buf[FMDN_EID_SEED_LEN];
+    memset(eid_seed_buf,FMDN_EID_SEED_PADDING_TYPE_ONE,FMDN_EID_SEED_PADDING_LEN);
+    eid_seed_buf[FMDN_EID_SEED_PADDING_LEN] = FMDN_EID_SEED_ROT_PERIOD_EXP;
+    uint8_t clock_bigendian[FMDN_EID_SEED_FMDN_CLOCK_LEN];
+    sys_put_be32(fmdn_clock,clock_bigendian);
+    memcpy(eid_seed_buf+FMDN_EID_SEED_PADDING_LEN+FMDN_EID_SEED_ROT_PERIOD_EXP_LEN,clock_bigendian,FMDN_EID_SEED_FMDN_CLOCK_LEN);
+    //2 half
+    memset(eid_seed_buf+(FMDN_EID_SEED_LEN/2),FMDN_EID_SEED_PADDING_TYPE_TWO,FMDN_EID_SEED_PADDING_LEN);
+    eid_seed_buf[(FMDN_EID_SEED_LEN/2)+FMDN_EID_SEED_PADDING_LEN] = FMDN_EID_SEED_ROT_PERIOD_EXP;
+
+    memcpy(eid_seed_buf+(FMDN_EID_SEED_LEN/2)+FMDN_EID_SEED_PADDING_LEN+FMDN_EID_SEED_ROT_PERIOD_EXP_LEN,clock_bigendian,FMDN_EID_SEED_FMDN_CLOCK_LEN);
+
+    print_hex(" eid_seed_buf: ", eid_seed_buf, FMDN_EID_SEED_LEN);
+    
+    uint8_t encrypted_eid_seed[FP_CRYPTO_AES256_BLOCK_LEN];
+    fp_crypto_aes256_ecb_encryptwithEik(encrypted_eid_seed,eid_seed_buf);
+    uint8_t fmdn_eid[32];
+    calculate_secp256r1_point(fmdn_eid,secp_mod_res,encrypted_eid_seed);
+
+    
 
 
 }

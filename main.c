@@ -220,6 +220,7 @@ STATIC_ASSERT(sizeof(buffer_list_t) % 4 == 0);
 
 BLE_GFP_DEF(m_gfp);
 APP_TIMER_DEF(m_battery_timer_id);                                  /**< Battery timer. */
+APP_TIMER_DEF(fmdn_timer_id);
 BLE_HIDS_DEF(m_hids,                                                /**< Structure used to identify the HID service. */
              NRF_SDH_BLE_TOTAL_LINK_COUNT,
              INPUT_REPORT_KEYS_MAX_LEN,
@@ -271,6 +272,7 @@ static uint8_t m_caps_off_key_scan_str[] = /**< Key pattern to be sent when the 
 };
 
 bool key_pairing_success = false;
+volatile uint32_t  fmdn_clock = 0;//sec
 static void advertising_init_nondiscoverable(void);
 static void on_hids_evt(ble_hids_t * p_hids, ble_hids_evt_t * p_evt);
 
@@ -464,7 +466,9 @@ static void battery_level_meas_timeout_handler(void * p_context)
     battery_level_update();
 }
 
-
+uint32_t get_system_uptime(void) {
+    return fmdn_clock;
+}
 /**@brief Function for the Timer initialization.
  *
  * @details Initializes the timer module.
@@ -480,6 +484,11 @@ static void timers_init(void)
     err_code = app_timer_create(&m_battery_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 battery_level_meas_timeout_handler);
+    APP_ERROR_CHECK(err_code);
+    // Create battery timer.
+    err_code = app_timer_create(&fmdn_timer_id,
+                                APP_TIMER_MODE_REPEATED,
+                                get_system_uptime);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -816,6 +825,8 @@ static void timers_start(void)
     ret_code_t err_code;
 
     err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+    APP_ERROR_CHECK(err_code);
+    err_code = app_timer_start(fmdn_timer_id, APP_TIMER_TICKS(1000), NULL);
     APP_ERROR_CHECK(err_code);
 }
 
