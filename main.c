@@ -1663,6 +1663,68 @@ static void advertising_init_nondiscoverable(void)
 
     ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
+
+/**@brief Function for initializing the Advertising functionality.
+ */
+static void advertising_init_fmdn(void)
+{
+    uint32_t               err_code;
+    uint8_t                adv_flags;
+    ble_advertising_init_t init;
+    uint8_t service_data[] = {0x4a, 0x43, 0x6b}; // Example service data
+    int8_t tx_power = 0xf2;
+
+    memset(&init, 0, sizeof(init));
+
+
+    init.advdata.name_type               = BLE_ADVDATA_NO_NAME;
+    init.advdata.include_appearance      = false;
+    init.advdata.flags                   = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    //init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    //init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+
+    ble_advdata_service_data_t service_data_fp;
+    service_data_fp.service_uuid=0xFEAA;
+    service_data_fp.data.p_data=service_data;
+    service_data_fp.data.size=3;
+    init.advdata.p_service_data_array=&service_data_fp;
+    init.advdata.service_data_count=1;
+    //init.advdata.p_tx_power_level=&tx_power;
+
+    init.srdata.name_type          = BLE_ADVDATA_NO_NAME;
+    init.srdata.include_appearance = false;
+
+
+     init.config.ble_adv_on_disconnect_disabled = true;
+    init.config.ble_adv_fast_enabled               = true;
+    init.config.ble_adv_fast_interval              = APP_ADV_FAST_INTERVAL;
+    init.config.ble_adv_fast_timeout               = APP_ADV_FAST_DURATION;
+    init.config.ble_adv_extended_enabled  = true; // Enable extended advertising
+
+
+    init.evt_handler   = on_adv_evt;
+    init.error_handler = ble_advertising_error_handler;
+
+    err_code = ble_advertising_init(&m_advertising, &init);
+    APP_ERROR_CHECK(err_code);
+
+        
+    m_advertising.adv_params.primary_phy = BLE_GAP_PHY_1MBPS;
+    m_advertising.adv_params.secondary_phy = BLE_GAP_PHY_1MBPS;
+    m_advertising.adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
+    m_advertising.adv_params.filter_policy = BLE_GAP_ADV_FP_ANY;
+    m_advertising.adv_params.duration = 0;
+    m_advertising.adv_params.interval = APP_ADV_FAST_INTERVAL;
+    
+  
+    sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV, m_advertising.adv_handle, 0);
+    
+   
+    err_code = sd_ble_gap_adv_set_configure(&m_advertising.adv_handle, NULL, &m_advertising.adv_params);
+    APP_ERROR_CHECK(err_code);
+
+    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
+}
 /**@brief Function for initializing buttons and leds.
  *
  * @param[out] p_erase_bonds  Will be true if the clear bonding button was pressed to wake the application up.
