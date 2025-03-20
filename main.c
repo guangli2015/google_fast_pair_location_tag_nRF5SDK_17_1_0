@@ -271,8 +271,9 @@ static uint8_t m_caps_off_key_scan_str[] = /**< Key pattern to be sent when the 
     0x09,       /* Key f */
 };
 
-bool key_pairing_success = false;
+//bool key_pairing_success = false;
 volatile uint32_t  fmdn_clock = 0;//sec
+extern uint8_t fmdn_service_data[32+2];
 static void advertising_init_nondiscoverable(void);
 static void on_hids_evt(ble_hids_t * p_hids, ble_hids_evt_t * p_evt);
 
@@ -1347,11 +1348,11 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // disabling alert 3. signal - used for capslock ON
             err_code = bsp_indication_set(BSP_INDICATE_ALERT_OFF);
             APP_ERROR_CHECK(err_code);
-            if(true == key_pairing_success)
-            {
-              advertising_init_nondiscoverable();
-            }
-            advertising_start(false);
+            //if(true == key_pairing_success)
+            //{
+            //  advertising_init_nondiscoverable();
+            //}
+            //advertising_start(false);
             break; // BLE_GAP_EVT_DISCONNECTED
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
@@ -1685,8 +1686,8 @@ static void advertising_init_fmdn(void)
 
     ble_advdata_service_data_t service_data_fp;
     service_data_fp.service_uuid=0xFEAA;
-    service_data_fp.data.p_data=service_data;
-    service_data_fp.data.size=3;
+    service_data_fp.data.p_data=fmdn_service_data;
+    service_data_fp.data.size=32+2;
     init.advdata.p_service_data_array=&service_data_fp;
     init.advdata.service_data_count=1;
     //init.advdata.p_tx_power_level=&tx_power;
@@ -1724,6 +1725,13 @@ static void advertising_init_fmdn(void)
     APP_ERROR_CHECK(err_code);
 
     ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
+}
+
+void fmdn_adv_set_setup()
+{
+       advertising_init_fmdn();
+     
+     advertising_start(false);
 }
 /**@brief Function for initializing buttons and leds.
  *

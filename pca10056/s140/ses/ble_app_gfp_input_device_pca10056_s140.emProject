@@ -149,6 +149,91 @@
     <folder Name="nRF_TLS">
       <file file_name="../../../../../../external/mbedtls/library/aes.c" />
       <file file_name="../../../../../../external/mbedtls/library/bignum.c" />
+      <file file_name="../../../../../../external/mbedtls/library/aesni.c" />
+      <file file_name="../../../../../../external/mbedtls/library/arc4.c" />
+      <file file_name="../../../../../../external/mbedtls/library/aria.c" />
+      <file file_name="../../../../../../external/mbedtls/library/asn1parse.c" />
+      <file file_name="../../../../../../external/mbedtls/library/asn1write.c" />
+      <file file_name="../../../../../../external/mbedtls/library/base64.c" />
+      <file file_name="../../../../../../external/mbedtls/library/blowfish.c" />
+      <file file_name="../../../../../../external/mbedtls/library/camellia.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ccm.c" />
+      <file file_name="../../../../../../external/mbedtls/library/certs.c" />
+      <file file_name="../../../../../../external/mbedtls/library/chacha20.c" />
+      <file file_name="../../../../../../external/mbedtls/library/chachapoly.c" />
+      <file file_name="../../../../../../external/mbedtls/library/cipher.c" />
+      <file file_name="../../../../../../external/mbedtls/library/cipher_wrap.c" />
+      <file file_name="../../../../../../external/mbedtls/library/cmac.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ctr_drbg.c" />
+      <file file_name="../../../../../../external/mbedtls/library/debug.c" />
+      <file file_name="../../../../../../external/mbedtls/library/des.c" />
+      <file file_name="../../../../../../external/mbedtls/library/dhm.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ecdh.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ecdsa.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ecjpake.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ecp.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ecp_curves.c" />
+      <file file_name="../../../../../../external/mbedtls/library/entropy.c" />
+      <file file_name="../../../../../../external/mbedtls/library/entropy_poll.c">
+        <configuration Name="Debug" build_exclude_from_build="Yes" />
+      </file>
+      <file file_name="../../../../../../external/mbedtls/library/error.c" />
+      <file file_name="../../../../../../external/mbedtls/library/gcm.c" />
+      <file file_name="../../../../../../external/mbedtls/library/havege.c" />
+      <file file_name="../../../../../../external/mbedtls/library/hkdf.c" />
+      <file file_name="../../../../../../external/mbedtls/library/hmac_drbg.c" />
+      <file file_name="../../../../../../external/mbedtls/library/md.c" />
+      <file file_name="../../../../../../external/mbedtls/library/md_wrap.c" />
+      <file file_name="../../../../../../external/mbedtls/library/md2.c" />
+      <file file_name="../../../../../../external/mbedtls/library/md4.c" />
+      <file file_name="../../../../../../external/mbedtls/library/md5.c" />
+      <file file_name="../../../../../../external/mbedtls/library/memory_buffer_alloc.c" />
+      <file file_name="../../../../../../external/mbedtls/library/net_sockets.c">
+        <configuration Name="Debug" build_exclude_from_build="Yes" />
+      </file>
+      <file file_name="../../../../../../external/mbedtls/library/nist_kw.c" />
+      <file file_name="../../../../../../external/mbedtls/library/oid.c" />
+      <file file_name="../../../../../../external/mbedtls/library/padlock.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pem.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pk.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pk_wrap.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pkcs5.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pkcs11.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pkcs12.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pkparse.c" />
+      <file file_name="../../../../../../external/mbedtls/library/pkwrite.c" />
+      <file file_name="../../../../../../external/mbedtls/library/platform.c" />
+      <file file_name="../../../../../../external/mbedtls/library/platform_util.c" />
+      <file file_name="../../../../../../external/mbedtls/library/poly1305.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ripemd160.c" />
+      <file file_name="../../../../../../external/mbedtls/library/rsa.c" />
+      <file file_name="../../../../../../external/mbedtls/library/rsa_internal.c" />
+      <file file_name="../../../../../../external/mbedtls/library/sha1.c" />
+      <file file_name="../../../../../../external/mbedtls/library/sha256.c" />
+      <file file_name="../../../../../../external/mbedtls/library/sha512.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_cache.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_ciphersuites.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_cli.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_cookie.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_srv.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_ticket.c" />
+      <file file_name="../../../../../../external/mbedtls/library/ssl_tls.c" />
+      <file file_name="../../../../../../external/mbedtls/library/threading.c" />
+      <file file_name="../../../../../../external/mbedtls/library/timing.c">
+        <configuration Name="Debug" build_exclude_from_build="Yes" />
+      </file>
+      <file file_name="../../../../../../external/mbedtls/library/version.c" />
+      <file file_name="../../../../../../external/mbedtls/library/version_features.c" />
+      <file file_name="../../../../../../external/mbedtls/library/x509.c" />
+      <file file_name="../../../../../../external/mbedtls/library/x509_create.c" />
+      <file file_name="../../../../../../external/mbedtls/library/x509_crl.c" />
+      <file file_name="../../../../../../external/mbedtls/library/x509_crt.c">
+        <configuration Name="Debug" build_exclude_from_build="Yes" />
+      </file>
+      <file file_name="../../../../../../external/mbedtls/library/x509_csr.c" />
+      <file file_name="../../../../../../external/mbedtls/library/x509write_crt.c" />
+      <file file_name="../../../../../../external/mbedtls/library/x509write_csr.c" />
+      <file file_name="../../../../../../external/mbedtls/library/xtea.c" />
     </folder>
     <folder Name="nRF_BLE">
       <file file_name="../../../../../../components/ble/peer_manager/auth_status_tracker.c" />

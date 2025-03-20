@@ -191,6 +191,13 @@ NRF_LOG_MODULE_REGISTER();
 
 #define FP_FMDN_STATE_EID_LEN 32
 
+/* Byte length of fields in the Ephemeral Identity Key Set response. */
+#define EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN \
+	(BEACON_ACTIONS_RSP_AUTH_SEG_LEN)
+#define EPHEMERAL_IDENTITY_KEY_SET_RSP_LEN \
+	(BEACON_ACTIONS_HEADER_LEN +       \
+	EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN)
+
 
 
 /* Fast Pair message type. */
@@ -285,7 +292,7 @@ struct fp_fmdn_auth_data {
 };
 
 static uint8_t  Anti_Spoofing_AES_Key[NRF_CRYPTO_HASH_SIZE_SHA256];
-extern bool key_pairing_success;
+//extern bool key_pairing_success;
 extern uint8_t dis_passkey[6 + 1];
 
 static uint8_t random_nonce[8];
@@ -294,9 +301,12 @@ static uint8_t owner_account_key[FP_CRYPTO_AES128_BLOCK_LEN];
 
 extern volatile uint32_t  fmdn_clock;//sec
 static uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
+
+uint8_t fmdn_service_data[32+2]={0};
 //function********************************************************************
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len);
+static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 
 static size_t fp_crypto_account_key_filter_size(size_t n)
 {
@@ -785,7 +795,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         {
           NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
         }
-        key_pairing_success = true;
+//        key_pairing_success = true;
         NRF_LOG_INFO("passkey_handles################################end\n");
                      
 
@@ -870,6 +880,8 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
     {
        uint8_t data_id;
        uint8_t data_len;
+       size_t  len_out;
+       uint8_t rsp_buf[50];
        NRF_LOG_INFO("beacon_actions_handles################################\n");
        data_id = p_evt_write->data[0];
        data_len = p_evt_write->data[1];
@@ -882,7 +894,8 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len);
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET:
-		//res = ephemeral_identity_key_set_handle(conn, attr, &fmdn_beacon_actions_buf);
+                len_out = 1+1+8;
+		ephemeral_identity_key_set_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR:
 		//res = ephemeral_identity_key_clear_handle(conn, attr, &fmdn_beacon_actions_buf);
@@ -906,6 +919,21 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 		NRF_LOG_ERROR("Beacon Actions: unrecognized request: data_id=%d", data_id);
 		
 	}
+      ble_gatts_hvx_params_t     hvx_params;
+      
+      memset(&hvx_params, 0, sizeof(hvx_params));
+      //len_out = 1+1+8;
+      hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+      hvx_params.p_data = rsp_buf;
+      hvx_params.p_len  = &len_out;
+      hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+      err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+      if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+      }
+
                       
 
     }
@@ -1326,6 +1354,13 @@ static void auth_data_encode(uint8_t *auth_data_buf,
 
 }
 
+//static int fp_fmdn_auth_seg_generate()
+//{
+//  uint8_t local_auth_buf[1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1+1+1];
+//  auth_data_encode()
+//}
+
+
 static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_buf_len,uint8_t * Pauth_seg)
 {
 
@@ -1601,7 +1636,9 @@ cleanup:
     return err_code;
 
 }
-static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
+
+extern void fmdn_adv_set_setup();
+static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf)
 {
     uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
     uint8_t auth_data_buf[100];
@@ -1613,7 +1650,7 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
     const uint8_t req_data_len = beacon_provisioned ?
 		EPHEMERAL_IDENTITY_KEY_SET_REQ_PROVISIONED_PAYLOAD_LEN :
 		EPHEMERAL_IDENTITY_KEY_SET_REQ_UNPROVISIONED_PAYLOAD_LEN;
-    static const uint8_t rsp_data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
+//    static const uint8_t rsp_data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
     struct fp_fmdn_auth_data auth_data;
     ret_code_t            err_code;
 
@@ -1731,7 +1768,57 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len)
      uint8_t hashed_flags_byte;
      hashed_flags_seed = 0;
      hashed_flags_byte = (hashed_flags_seed ^ fmdn_frame_hashed_flags_xor_operand);
-     
+
+     fmdn_service_data[0]= 0x40;
+     memcpy(fmdn_service_data+1,fmdn_eid,32);
+
+     fmdn_adv_set_setup();
+
+     //uint8_t rsp_buf[1+1+8];
+     rsp_buf[0] = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
+     rsp_buf[1] = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
+     auth_data.data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
+     auth_data.add_data = NULL;
+
+     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+     auth_data_buf[auth_data_buf_len]=0x01;
+     ++auth_data_buf_len;
+
+     nrf_crypto_hmac_context_t m_context;
+     uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
+     size_t local_auth_seg_len = sizeof(local_auth_seg);
+
+        // Initialize frontend (which also initializes backend).
+     err_code = nrf_crypto_hmac_init(&m_context,
+                                    &g_nrf_crypto_hmac_sha256_info,
+                                    owner_account_key,
+                                    FP_ACCOUNT_KEY_LEN);
+     if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_init err %x\n",err_code);
+      }
+    
+
+    // Push all data in one go (could be done repeatedly)
+    err_code = nrf_crypto_hmac_update(&m_context, auth_data_buf, auth_data_buf_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_update err %x\n",err_code);
+      }
+
+    // Finish calculation
+    err_code = nrf_crypto_hmac_finalize(&m_context, local_auth_seg, &local_auth_seg_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
+      }
+
+    memcpy(rsp_buf+2,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
+    
+
+
+
+
 
     
 
