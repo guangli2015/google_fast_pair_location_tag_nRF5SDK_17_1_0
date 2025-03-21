@@ -468,6 +468,7 @@ static void battery_level_meas_timeout_handler(void * p_context)
 }
 
 uint32_t get_system_uptime(void) {
+    ++fmdn_clock;
     return fmdn_clock;
 }
 /**@brief Function for the Timer initialization.

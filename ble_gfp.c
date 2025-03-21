@@ -104,6 +104,8 @@ NRF_LOG_MODULE_REGISTER();
 #define WRITE_BIT(var, bit, set) \
 	((var) = (set) ? ((var) | BIT(bit)) : ((var) & ~BIT(bit)))
 
+#define FMDN_TX_POWER_CORRECTION_VAL -14
+
 /* Beacon Actions characteristic. */
 #define BEACON_ACTIONS_DATA_ID_LEN           1
 #define BEACON_ACTIONS_DATA_LENGTH_LEN       1
@@ -305,7 +307,7 @@ static uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
 uint8_t fmdn_service_data[32+2]={0};
 //function********************************************************************
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
-static int beacon_parameters_read_handle(uint8_t *data,uint16_t len);
+static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 
 static size_t fp_crypto_account_key_filter_size(size_t n)
@@ -888,7 +890,8 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
        switch (data_id) 
        {
 	case BEACON_ACTIONS_BEACON_PARAMETERS_READ:
-		 beacon_parameters_read_handle(p_evt_write->data,p_evt_write->len);
+                 len_out = BEACON_PARAMETERS_RSP_LEN;
+		 beacon_parameters_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
 		break;
 	case BEACON_ACTIONS_PROVISIONING_STATE_READ:
 		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len);
@@ -1422,12 +1425,13 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
   }
   return false;
 }
-static int beacon_parameters_read_handle(uint8_t *data,uint16_t len)
+static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf)
 {
     uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
     uint8_t auth_data_buf[100];
     size_t auth_data_buf_len = 0;
     bool result =false;
+    ret_code_t            err_code;
     static const uint8_t req_data_len = BEACON_PARAMETERS_REQ_PAYLOAD_LEN;
   static const uint8_t rsp_data_len = BEACON_PARAMETERS_RSP_PAYLOAD_LEN;
     struct fp_fmdn_auth_data auth_data;
@@ -1444,7 +1448,84 @@ static int beacon_parameters_read_handle(uint8_t *data,uint16_t len)
 
     NRF_LOG_INFO("beacon_parameters_read_handle result %x\n",result);
 
+    uint8_t rsp_data_buf[BEACON_PARAMETERS_RSP_ADD_DATA_LEN];
+    memset(rsp_data_buf,0,BEACON_PARAMETERS_RSP_ADD_DATA_LEN);
+    int32_t calibrated_tx_power;
+    int8_t tx_power;
+    calibrated_tx_power = 0;
+    calibrated_tx_power += FMDN_TX_POWER_CORRECTION_VAL;
+    tx_power = calibrated_tx_power;
+    rsp_data_buf[0] = tx_power;
 
+    uint8_t clock_bigendian[FMDN_EID_SEED_FMDN_CLOCK_LEN];
+    uint32_t fmdn_clock_copy;
+    fmdn_clock_copy = fmdn_clock;
+    sys_put_be32(fmdn_clock_copy,clock_bigendian);
+    memcpy(rsp_data_buf+1,clock_bigendian,FMDN_EID_SEED_FMDN_CLOCK_LEN);
+    rsp_data_buf[5] = 0x01;
+
+
+    nrf_crypto_aes_info_t const * p_ecb_info;
+    nrf_crypto_aes_context_t      ecb_encr_ctx;
+    uint8_t rsp_data_enc[FP_CRYPTO_AES128_BLOCK_LEN];
+    size_t len_out;
+    len_out = 16;
+    /* Encrypt text with integrated function */
+    err_code = nrf_crypto_aes_crypt(&ecb_encr_ctx,
+                                   p_ecb_info,
+                                   NRF_CRYPTO_ENCRYPT,
+                                   Anti_Spoofing_AES_Key,
+                                   NULL,
+                                   (uint8_t *)rsp_data_buf,
+                                   BEACON_PARAMETERS_RSP_ADD_DATA_LEN,
+                                   (uint8_t *)rsp_data_enc,
+                                   &len_out);
+    if(NRF_SUCCESS != err_code)
+    {
+       NRF_LOG_ERROR("nrf_crypto_aes_crypt err %x\n",err_code);
+    }
+
+//rsp response
+     rsp_buf[0] = BEACON_ACTIONS_BEACON_PARAMETERS_READ;
+     rsp_buf[1] = BEACON_PARAMETERS_RSP_PAYLOAD_LEN;
+     auth_data.data_len = BEACON_PARAMETERS_RSP_PAYLOAD_LEN;
+     auth_data.add_data = rsp_data_enc;
+
+     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+     auth_data_buf[auth_data_buf_len]=0x01;
+     ++auth_data_buf_len;
+
+     nrf_crypto_hmac_context_t m_context;
+     uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
+     size_t local_auth_seg_len = sizeof(local_auth_seg);
+
+        // Initialize frontend (which also initializes backend).
+     err_code = nrf_crypto_hmac_init(&m_context,
+                                    &g_nrf_crypto_hmac_sha256_info,
+                                    owner_account_key,
+                                    FP_ACCOUNT_KEY_LEN);
+     if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_init err %x\n",err_code);
+      }
+    
+
+    // Push all data in one go (could be done repeatedly)
+    err_code = nrf_crypto_hmac_update(&m_context, auth_data_buf, auth_data_buf_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_update err %x\n",err_code);
+      }
+
+    // Finish calculation
+    err_code = nrf_crypto_hmac_finalize(&m_context, local_auth_seg, &local_auth_seg_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
+      }
+
+    memcpy(rsp_buf+2,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
+    memcpy(rsp_buf+2+FP_FMDN_AUTH_SEG_LEN,rsp_data_enc,FP_CRYPTO_AES128_BLOCK_LEN);
 
 }
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
@@ -1701,14 +1782,15 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
       NRF_LOG_ERROR("nrf_crypto_aes_finalize err %x\n",err_code);
     }
 
-
+    uint32_t  fmdn_clock_copy;
+    fmdn_clock_copy = fmdn_clock;
     /* Clear the K lowest bits in the clock value. */
-    fmdn_clock &= ~BIT_MASK(FMDN_EID_SEED_ROT_PERIOD_EXP);
+    fmdn_clock_copy &= ~BIT_MASK(FMDN_EID_SEED_ROT_PERIOD_EXP);
     uint8_t eid_seed_buf[FMDN_EID_SEED_LEN];
     memset(eid_seed_buf,FMDN_EID_SEED_PADDING_TYPE_ONE,FMDN_EID_SEED_PADDING_LEN);
     eid_seed_buf[FMDN_EID_SEED_PADDING_LEN] = FMDN_EID_SEED_ROT_PERIOD_EXP;
     uint8_t clock_bigendian[FMDN_EID_SEED_FMDN_CLOCK_LEN];
-    sys_put_be32(fmdn_clock,clock_bigendian);
+    sys_put_be32(fmdn_clock_copy,clock_bigendian);
     memcpy(eid_seed_buf+FMDN_EID_SEED_PADDING_LEN+FMDN_EID_SEED_ROT_PERIOD_EXP_LEN,clock_bigendian,FMDN_EID_SEED_FMDN_CLOCK_LEN);
     //2 half
     memset(eid_seed_buf+(FMDN_EID_SEED_LEN/2),FMDN_EID_SEED_PADDING_TYPE_TWO,FMDN_EID_SEED_PADDING_LEN);
