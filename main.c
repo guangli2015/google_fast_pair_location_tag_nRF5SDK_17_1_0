@@ -467,9 +467,8 @@ static void battery_level_meas_timeout_handler(void * p_context)
     battery_level_update();
 }
 
-uint32_t get_system_uptime(void) {
+static void system_uptime_handler(void) {
     ++fmdn_clock;
-    return fmdn_clock;
 }
 /**@brief Function for the Timer initialization.
  *
@@ -490,7 +489,7 @@ static void timers_init(void)
     // Create battery timer.
     err_code = app_timer_create(&fmdn_timer_id,
                                 APP_TIMER_MODE_REPEATED,
-                                get_system_uptime);
+                               system_uptime_handler);
     APP_ERROR_CHECK(err_code);
 }
 
