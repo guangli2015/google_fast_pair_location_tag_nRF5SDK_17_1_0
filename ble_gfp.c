@@ -147,7 +147,7 @@ NRF_LOG_MODULE_REGISTER();
 #define PROVISIONING_STATE_REQ_PAYLOAD_LEN FP_FMDN_AUTH_SEG_LEN
 /* Byte length of fields in the Provisioning State response. */
 #define PROVISIONING_STATE_RSP_BITFIELD_LEN 1
-#define PROVISIONING_STATE_RSP_EID_LEN      20
+#define PROVISIONING_STATE_RSP_EID_LEN      32
 #define PROVISIONING_STATE_RSP_ADD_DATA_LEN    \
 	(PROVISIONING_STATE_RSP_BITFIELD_LEN + \
 	PROVISIONING_STATE_RSP_EID_LEN)
@@ -305,8 +305,9 @@ extern volatile uint32_t  fmdn_clock;//sec
 static uint8_t new_eik[EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN];
 
 uint8_t fmdn_service_data[32+2]={0};
+uint8_t fmdn_eid[32];
 //function********************************************************************
-static int provisioning_state_read_handle(uint8_t *data,uint16_t len);
+static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 
@@ -894,7 +895,8 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 		 beacon_parameters_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
 		break;
 	case BEACON_ACTIONS_PROVISIONING_STATE_READ:
-		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len);
+                  len_out = PROVISIONING_STATE_RSP_LEN;
+		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET:
                 len_out = 1+1+8;
@@ -1469,12 +1471,13 @@ static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp
     nrf_crypto_aes_context_t      ecb_encr_ctx;
     uint8_t rsp_data_enc[FP_CRYPTO_AES128_BLOCK_LEN];
     size_t len_out;
+    p_ecb_info = &g_nrf_crypto_aes_ecb_128_info;
     len_out = 16;
     /* Encrypt text with integrated function */
     err_code = nrf_crypto_aes_crypt(&ecb_encr_ctx,
                                    p_ecb_info,
                                    NRF_CRYPTO_ENCRYPT,
-                                   Anti_Spoofing_AES_Key,
+                                   owner_account_key,
                                    NULL,
                                    (uint8_t *)rsp_data_buf,
                                    BEACON_PARAMETERS_RSP_ADD_DATA_LEN,
@@ -1528,13 +1531,14 @@ static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp
     memcpy(rsp_buf+2+FP_FMDN_AUTH_SEG_LEN,rsp_data_enc,FP_CRYPTO_AES128_BLOCK_LEN);
 
 }
-static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
+static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf)
 {
     uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
     uint8_t auth_data_buf[100];
     size_t auth_data_buf_len = 0;
     bool result =false;
    // bool provisioned = false;
+       ret_code_t            err_code;
     static const uint8_t req_data_len = PROVISIONING_STATE_REQ_PAYLOAD_LEN;
     uint8_t rsp_data_len;
     struct fp_fmdn_auth_data auth_data;
@@ -1553,8 +1557,59 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len)
     NRF_LOG_INFO("provisioning_state_read_handle result %x\n",result);
 
     /* Prepare response payload. */
-	//rsp_data_len = provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
-	//	(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
+    rsp_data_len = beacon_provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
+		(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
+    
+    //uint8_t rsp_buf[PROVISIONING_STATE_RSP_LEN];
+    rsp_buf[0] = BEACON_ACTIONS_PROVISIONING_STATE_READ;
+    rsp_buf[1] = rsp_data_len;
+    if(beacon_provisioned == true)
+    {
+      rsp_buf[BEACON_ACTIONS_HEADER_LEN+BEACON_ACTIONS_RSP_AUTH_SEG_LEN] = 0x03;
+      memcpy(rsp_buf+BEACON_ACTIONS_HEADER_LEN+BEACON_ACTIONS_RSP_AUTH_SEG_LEN+1,fmdn_eid,32);
+    }
+    else
+    {
+      rsp_buf[BEACON_ACTIONS_HEADER_LEN+BEACON_ACTIONS_RSP_AUTH_SEG_LEN] = 0x02;
+    }
+
+    auth_data.data_len = rsp_data_len;
+    auth_data.add_data = rsp_buf+BEACON_ACTIONS_HEADER_LEN+BEACON_ACTIONS_RSP_AUTH_SEG_LEN;
+    auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+    auth_data_buf[auth_data_buf_len]=0x01;
+    ++auth_data_buf_len;
+
+     nrf_crypto_hmac_context_t m_context;
+     uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
+     size_t local_auth_seg_len = sizeof(local_auth_seg);
+
+        // Initialize frontend (which also initializes backend).
+     err_code = nrf_crypto_hmac_init(&m_context,
+                                    &g_nrf_crypto_hmac_sha256_info,
+                                    owner_account_key,
+                                    FP_ACCOUNT_KEY_LEN);
+     if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_init err %x\n",err_code);
+      }
+    
+
+    // Push all data in one go (could be done repeatedly)
+    err_code = nrf_crypto_hmac_update(&m_context, auth_data_buf, auth_data_buf_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_update err %x\n",err_code);
+      }
+
+    // Finish calculation
+    err_code = nrf_crypto_hmac_finalize(&m_context, local_auth_seg, &local_auth_seg_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
+      }
+
+      memcpy(rsp_buf+BEACON_ACTIONS_HEADER_LEN,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
+    
 
 
 
@@ -1806,7 +1861,7 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
     {
       NRF_LOG_ERROR("fp_crypto_aes256_ecb_encryptwithEik err %x\n",err_code);
     }
-    uint8_t fmdn_eid[32];
+    //uint8_t fmdn_eid[32];
      err_code = calculate_secp256r1_point(fmdn_eid,secp_mod_res,encrypted_eid_seed);
     if(NRF_SUCCESS != err_code)
     {
@@ -1855,6 +1910,7 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
      memcpy(fmdn_service_data+1,fmdn_eid,32);
 
      fmdn_adv_set_setup();
+     beacon_provisioned = true;
 
      //uint8_t rsp_buf[1+1+8];
      rsp_buf[0] = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
