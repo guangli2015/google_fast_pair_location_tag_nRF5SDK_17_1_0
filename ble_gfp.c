@@ -201,6 +201,19 @@ NRF_LOG_MODULE_REGISTER();
 	EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN)
 
 
+/* Byte length of fields in the Ephemeral Identity Key Clear request. */
+#define EPHEMERAL_IDENTITY_KEY_CLEAR_REQ_PAYLOAD_LEN \
+	(FP_FMDN_AUTH_SEG_LEN +      \
+	EPHEMERAL_IDENTITY_KEY_REQ_EIK_HASH_LEN)
+
+/* Byte length of fields in the Ephemeral Identity Key Clear response. */
+#define EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_PAYLOAD_LEN \
+	(BEACON_ACTIONS_RSP_AUTH_SEG_LEN)
+#define EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_LEN \
+	(BEACON_ACTIONS_HEADER_LEN +         \
+	EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_PAYLOAD_LEN)
+
+
 
 /* Fast Pair message type. */
 enum fp_msg_type {
@@ -310,6 +323,7 @@ uint8_t fmdn_eid[32];
 static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
+static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 
 static size_t fp_crypto_account_key_filter_size(size_t n)
 {
@@ -903,7 +917,8 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 		ephemeral_identity_key_set_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR:
-		//res = ephemeral_identity_key_clear_handle(conn, attr, &fmdn_beacon_actions_buf);
+                len_out = EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_LEN;
+		ephemeral_identity_key_clear_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_READ:
 		//res = ephemeral_identity_key_read_handle(conn, attr, &fmdn_beacon_actions_buf);
@@ -1952,13 +1967,114 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
       }
 
     memcpy(rsp_buf+2,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
+  
+}
+
+extern void fmdn_adv_set_stop();
+static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf)
+{
+    struct fp_fmdn_auth_data auth_data;
+    ret_code_t            err_code;
+    uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
+    uint8_t auth_data_buf[100];
+    //uint8_t secp_mod_res[FP_FMDN_STATE_EID_LEN];
+    size_t auth_data_buf_len = 0;
+    bool result =false;
+
+    memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
+    memset(&auth_data, 0, sizeof(auth_data));
+    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.data_id = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR;
+    auth_data.data_len = EPHEMERAL_IDENTITY_KEY_CLEAR_REQ_PAYLOAD_LEN;
+    auth_data.add_data = (data + 2 + FP_FMDN_AUTH_SEG_LEN);
+
+    auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+    print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
+    print_hex(" auth_segget ", auth_seg, 8);
+    result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
+
+    NRF_LOG_INFO("ephemeral_identity_key_set_handle result %x\n",result);
+
+    memcpy(auth_data_buf,new_eik,EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN);
+    memcpy(auth_data_buf+EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN,random_nonce,8);
+    auth_data_buf_len = EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN+8;
+
+     nrf_crypto_hash_context_t   hash_context;
+     size_t digest_len = NRF_CRYPTO_HASH_SIZE_SHA256;
+     uint8_t add_data_hash[FP_CRYPTO_SHA256_HASH_LEN];
+
+           // Initialize the hash context
+     err_code = nrf_crypto_hash_init(&hash_context, &g_nrf_crypto_hash_sha256_info);
+     if(NRF_SUCCESS != err_code)
+     {
+        NRF_LOG_ERROR("nrf_crypto_hash_init err %x\n",err_code);
+     }
+
+    // Run the update function (this can be run multiples of time if the data is accessible
+    // in smaller chunks, e.g. when received on-air.
+     err_code = nrf_crypto_hash_update(&hash_context, auth_data_buf, auth_data_buf_len);
+     if(NRF_SUCCESS != err_code)
+     {
+        NRF_LOG_ERROR("nrf_crypto_hash_update err %x\n",err_code);
+     }
+
+    // Run the finalize when all data has been fed to the update function.
+    // this gives you the result
+     err_code = nrf_crypto_hash_finalize(&hash_context, add_data_hash, &digest_len);
+     if(NRF_SUCCESS != err_code)
+     {
+       NRF_LOG_ERROR("nrf_crypto_hash_finalize err %x\n",err_code);
+     }
+     
+     if(memcmp(auth_data.add_data,add_data_hash,EPHEMERAL_IDENTITY_KEY_REQ_EIK_HASH_LEN))
+     {
+        return;
+     }
+     
+     memset(new_eik,0,EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN);
+     memset(fmdn_eid,0,32);
+     
+     fmdn_adv_set_stop();
+
+     rsp_buf[0] = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
+     rsp_buf[1] = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
+     auth_data.data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
+     auth_data.add_data = NULL;
+
+     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
+     auth_data_buf[auth_data_buf_len]=0x01;
+     ++auth_data_buf_len;
+
+     nrf_crypto_hmac_context_t m_context;
+     uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
+     size_t local_auth_seg_len = sizeof(local_auth_seg);
+
+        // Initialize frontend (which also initializes backend).
+     err_code = nrf_crypto_hmac_init(&m_context,
+                                    &g_nrf_crypto_hmac_sha256_info,
+                                    owner_account_key,
+                                    FP_ACCOUNT_KEY_LEN);
+     if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_init err %x\n",err_code);
+      }
     
 
+    // Push all data in one go (could be done repeatedly)
+    err_code = nrf_crypto_hmac_update(&m_context, auth_data_buf, auth_data_buf_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_update err %x\n",err_code);
+      }
 
+    // Finish calculation
+    err_code = nrf_crypto_hmac_finalize(&m_context, local_auth_seg, &local_auth_seg_len);
+    if(NRF_SUCCESS != err_code)
+      {
+        NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
+      }
 
-
+    memcpy(rsp_buf+2,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
 
     
-
-
 }

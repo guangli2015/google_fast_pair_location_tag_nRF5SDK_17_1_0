@@ -1733,6 +1733,14 @@ void fmdn_adv_set_setup()
      
      advertising_start(false);
 }
+void fmdn_adv_set_stop()
+{
+       
+      uint32_t err_code;
+    err_code = sd_ble_gap_adv_stop(m_advertising.adv_handle);
+    APP_ERROR_CHECK(err_code);
+     
+}
 /**@brief Function for initializing buttons and leds.
  *
  * @param[out] p_erase_bonds  Will be true if the clear bonding button was pressed to wake the application up.
