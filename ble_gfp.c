@@ -455,25 +455,25 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
     ble_gfp_evt_t                 evt;
     ble_gatts_evt_write_t const * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 
- NRF_LOG_INFO("on_write################################\n");
+ //NRF_LOG_INFO("on_write################################\n");
     if ((p_evt_write->handle == p_gfp->keybase_pair_handles.cccd_handle) &&
         (p_evt_write->len == 2))
     {
 
-       NRF_LOG_INFO("keybase_pair_ccchandles################################%d&  %d\n",ble_srv_is_notification_enabled(p_evt_write->data),ble_srv_is_indication_enabled(p_evt_write->data));
+       //NRF_LOG_INFO("keybase_pair_ccchandles################################%d&  %d\n",ble_srv_is_notification_enabled(p_evt_write->data),ble_srv_is_indication_enabled(p_evt_write->data));
 
     }
     else if ((p_evt_write->handle == p_gfp->passkey_handles.cccd_handle) &&
         (p_evt_write->len == 2))
     {
 
-        NRF_LOG_INFO("passkey_ccchandles################################\n");
+        //NRF_LOG_INFO("passkey_ccchandles################################\n");
     }
      else if ((p_evt_write->handle == p_gfp->addi_data_handles.cccd_handle) &&
         (p_evt_write->len == 2))
     {
 
-      NRF_LOG_INFO("addi_data_ccchandles################################%d&  %d\n",ble_srv_is_notification_enabled(p_evt_write->data),ble_srv_is_indication_enabled(p_evt_write->data));
+      //NRF_LOG_INFO("addi_data_ccchandles################################%d&  %d\n",ble_srv_is_notification_enabled(p_evt_write->data),ble_srv_is_indication_enabled(p_evt_write->data));
     }
     else if ((p_evt_write->handle == p_gfp->keybase_pair_handles.value_handle) )
     {
@@ -656,10 +656,10 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
                 break;
 		
 	}
-        NRF_LOG_INFO("requ:%x %x\n",parsed_req.msg_type,parsed_req.fp_flags);
-        print_hex(" raw_req: ", raw_req, 16);
+       // NRF_LOG_INFO("requ:%x %x\n",parsed_req.msg_type,parsed_req.fp_flags);
+       // print_hex(" raw_req: ", raw_req, 16);
 
-        print_hex(" provider_address: ", parsed_req.provider_address, 6);
+       // print_hex(" provider_address: ", parsed_req.provider_address, 6);
 
         ble_gap_addr_t addr;
         err_code = sd_ble_gap_addr_get(&addr);
@@ -672,7 +672,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         uint8_t rsp[FP_CRYPTO_AES128_BLOCK_LEN];
         rsp[0] = FP_MSG_KEY_BASED_PAIRING_RSP;
         gfp_memcpy_swap(rsp+1, addr.addr,6);
-        print_hex("rsp: ", rsp, 16);
+        //print_hex("rsp: ", rsp, 16);
 
         nrf_crypto_aes_context_t      ecb_encr_ctx;
         uint8_t encrypted_rsp[FP_CRYPTO_AES128_BLOCK_LEN];
@@ -820,7 +820,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         else if ((p_evt_write->handle == p_gfp->account_key_handles.value_handle) )
     {
 
-        NRF_LOG_INFO("account_key_handles################################\n");
+       // NRF_LOG_INFO("account_key_handles################################\n");
         //if( false == key_pairing_success)
         //{
         //  return ;
@@ -858,7 +858,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         {
           NRF_LOG_ERROR("nrf_crypto_aes_finalize err %x\n",err_code);
         }
-  print_hex("acckeyadd",raw_req_accountkey,16);
+  //print_hex("acckeyadd",raw_req_accountkey,16);
         if(0x04 != raw_req_accountkey[0])
         {
           return;
@@ -869,7 +869,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         {
           data.account_key[i] = raw_req_accountkey[i];
         }
-        print_hex("acckeyadd",raw_req_accountkey,16);
+        //print_hex("acckeyadd",raw_req_accountkey,16);
 //test
         //uint8_t testacc[16]={0x4 , 0xa6 , 0xef , 0x67 , 0x5a , 0xb8 , 0xac , 0x2d , 0xd4 , 0x67 , 0x4f , 0xe8 , 0xbf , 0x6c , 0x4f , 0xf5};
         // for(int i=0;i<FP_CRYPTO_AES128_BLOCK_LEN;i++)
@@ -899,7 +899,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
        uint8_t data_len;
        size_t  len_out;
        uint8_t rsp_buf[50];
-       NRF_LOG_INFO("beacon_actions_handles################################\n");
+       //NRF_LOG_INFO("beacon_actions_handles################################\n");
        data_id = p_evt_write->data[0];
        data_len = p_evt_write->data[1];
        switch (data_id) 
@@ -985,7 +985,7 @@ static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
             ble_gatts_evt_rw_authorize_request_t const * p_read_auth =
               &p_ble_evt->evt.gatts_evt.params.authorize_request;
 
-        NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST readrsp\n");
+        //NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST readrsp\n");
 
         err_code = nrf_crypto_rng_vector_generate(random_nonce, 8);
         if(NRF_SUCCESS != err_code)
@@ -994,6 +994,7 @@ static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         }
         rsp[0] = BT_FAST_PAIR_FMDN_VERSION_MAJOR;
         memcpy(rsp+1,random_nonce,8);
+        print_hex("random_nonce",random_nonce,8);
 
 
         memset(&auth_read_params, 0, sizeof(auth_read_params));
@@ -1032,7 +1033,7 @@ void ble_gfp_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
             on_write(p_gfp, p_ble_evt);
             break;
         case BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST:
-            NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST");
+            //NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST");
             on_read(p_gfp, p_ble_evt);
 
             break;
@@ -1354,7 +1355,7 @@ static void auth_data_encode(uint8_t *auth_data_buf,
 	 * (Protocol Major Version || random_nonce || Data ID || Data length ||
 	 * Additional data).
 	 */
-	
+	NRF_LOG_INFO("auth_data_encode\n");
         *(auth_data_buf+0) = BT_FAST_PAIR_FMDN_VERSION_MAJOR;
 	memcpy(auth_data_buf+1,auth_data->Prandom_nonce,BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN);
         *(auth_data_buf+1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN) = auth_data->data_id;
@@ -1370,7 +1371,7 @@ static void auth_data_encode(uint8_t *auth_data_buf,
 	}
         *plen=1+BT_FAST_PAIR_FMDN_RANDOM_NONCE_LEN+1+1;
 
-        print_hex(" auth_data_buf: ", auth_data_buf, *plen);
+        //print_hex(" auth_data_buf: ", auth_data_buf, *plen);
 
 }
 
@@ -1389,7 +1390,7 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
   uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
   size_t local_auth_seg_len = sizeof(local_auth_seg);
   size_t account_key_cnt = nrf_queue_utilization_get(&account_key_queue);
-  NRF_LOG_INFO("account_key_cnt  %x\n",account_key_cnt);
+  //printf("account_key_cnt  %x\n",account_key_cnt);
   err_code = nrf_queue_read(&account_key_queue,accountkey_array,account_key_cnt);
   if(NRF_SUCCESS != err_code)
   {
@@ -1404,7 +1405,7 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
       }
   }
 
-   print_hex(" accountkey_array[0].account_key: ", accountkey_array[0].account_key, 16);
+   //print_hex(" accountkey_array[0].account_key: ", accountkey_array[0].account_key, 16);
   for (size_t i = 0; i < account_key_cnt; i++) {
      nrf_crypto_hmac_context_t m_context;
 
@@ -1432,8 +1433,8 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
       {
         NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
       }
-    print_hex(" Pauth_seg ", Pauth_seg, 8);
-    print_hex(" local_auth_seg ", local_auth_seg, 8);
+    //print_hex(" Pauth_seg ", Pauth_seg, 8);
+    //print_hex(" local_auth_seg ", local_auth_seg, 8);
    if(!memcmp(local_auth_seg, Pauth_seg, FP_FMDN_AUTH_SEG_LEN))
    {
       memcpy(owner_account_key,accountkey_array[i].account_key,FP_CRYPTO_AES128_BLOCK_LEN);
@@ -1455,7 +1456,7 @@ static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
 
     memset(&auth_data, 0, sizeof(auth_data));
-    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.Prandom_nonce = random_nonce;
     auth_data.data_id = BEACON_ACTIONS_BEACON_PARAMETERS_READ;
     auth_data.data_len = req_data_len;
 
@@ -1557,24 +1558,29 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
     static const uint8_t req_data_len = PROVISIONING_STATE_REQ_PAYLOAD_LEN;
     uint8_t rsp_data_len;
     struct fp_fmdn_auth_data auth_data;
+     //NRF_LOG_INFO("provisioning_state_read_handle ##########################\n");
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
 
     memset(&auth_data, 0, sizeof(auth_data));
-    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.Prandom_nonce = random_nonce;
     auth_data.data_id = BEACON_ACTIONS_PROVISIONING_STATE_READ;
     auth_data.data_len = req_data_len;
 
     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
     print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
-     print_hex(" auth_segget ", auth_seg, 8);
+     //print_hex(" auth_segget ", auth_seg, 8);
     result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
+    if(result == false)
+    {
+      return;
+    }
 
-    NRF_LOG_INFO("provisioning_state_read_handle result %x\n",result);
+    //NRF_LOG_INFO("provisioning_state_read_handle result %x provisoned %x\n",result,beacon_provisioned);
 
     /* Prepare response payload. */
     rsp_data_len = beacon_provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
 		(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
-    
+    // NRF_LOG_INFO("rsp_data_len %x\n",rsp_data_len);
     //uint8_t rsp_buf[PROVISIONING_STATE_RSP_LEN];
     rsp_buf[0] = BEACON_ACTIONS_PROVISIONING_STATE_READ;
     rsp_buf[1] = rsp_data_len;
@@ -1622,8 +1628,9 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
       {
         NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
       }
-
+ print_hex(" local_auth_seg_rsp ", local_auth_seg, 8);
       memcpy(rsp_buf+BEACON_ACTIONS_HEADER_LEN,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
+       print_hex(" rsp_buf ", rsp_buf, PROVISIONING_STATE_RSP_LEN);
     
 
 
@@ -1807,7 +1814,7 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
 
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
     memset(&auth_data, 0, sizeof(auth_data));
-    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.Prandom_nonce = random_nonce;
     auth_data.data_id = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
     auth_data.data_len = req_data_len;
     auth_data.add_data = (data + 2 + FP_FMDN_AUTH_SEG_LEN);
@@ -1983,7 +1990,7 @@ static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_
 
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
     memset(&auth_data, 0, sizeof(auth_data));
-    auth_data.Prandom_nonce = &random_nonce;
+    auth_data.Prandom_nonce = random_nonce;
     auth_data.data_id = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR;
     auth_data.data_len = EPHEMERAL_IDENTITY_KEY_CLEAR_REQ_PAYLOAD_LEN;
     auth_data.add_data = (data + 2 + FP_FMDN_AUTH_SEG_LEN);
@@ -1993,7 +2000,7 @@ static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_
     print_hex(" auth_segget ", auth_seg, 8);
     result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
 
-    NRF_LOG_INFO("ephemeral_identity_key_set_handle result %x\n",result);
+    NRF_LOG_INFO("ephemeral_identity_key_clear_handle result %x\n",result);
 
     memcpy(auth_data_buf,new_eik,EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN);
     memcpy(auth_data_buf+EPHEMERAL_IDENTITY_KEY_SET_REQ_EIK_LEN,random_nonce,8);
