@@ -1320,6 +1320,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
  * @param[in]   p_ble_evt   Bluetooth stack event.
  * @param[in]   p_context   Unused.
  */
+ static bool ex_only_once=false;
 static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 {
     ret_code_t err_code;
@@ -1348,10 +1349,12 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // disabling alert 3. signal - used for capslock ON
             err_code = bsp_indication_set(BSP_INDICATE_ALERT_OFF);
             APP_ERROR_CHECK(err_code);
-            //if(true == key_pairing_success)
-            //{
-            //  advertising_init_nondiscoverable();
-            //}
+            if(false == ex_only_once)
+            {
+              advertising_init_nondiscoverable();
+              advertising_start(false);
+              ex_only_once = true;
+            }
             //advertising_start(false);
             break; // BLE_GAP_EVT_DISCONNECTED
 
@@ -1650,7 +1653,7 @@ static void advertising_init_nondiscoverable(void)
     init.srdata.include_appearance = false;
 
 
-    init.config.ble_adv_on_disconnect_disabled = true;
+    //init.config.ble_adv_on_disconnect_disabled = true;
     init.config.ble_adv_fast_enabled               = true;
     init.config.ble_adv_fast_interval              = APP_ADV_FAST_INTERVAL;
     init.config.ble_adv_fast_timeout               = APP_ADV_FAST_DURATION;

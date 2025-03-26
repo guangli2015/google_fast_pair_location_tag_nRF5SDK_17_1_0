@@ -294,7 +294,7 @@ struct msg_seekers_passkey {
 /** Authentication seed data */
 struct fp_fmdn_auth_data {
 	/** Random Nonce */
-	const uint8_t *Prandom_nonce;
+	uint8_t *Prandom_nonce;
 
 	/** Data ID */
 	uint8_t data_id;
@@ -303,14 +303,14 @@ struct fp_fmdn_auth_data {
 	uint8_t data_len;
 
 	/** Additional Data */
-	const uint8_t *add_data;
+	uint8_t *add_data;
 };
 
 static uint8_t  Anti_Spoofing_AES_Key[NRF_CRYPTO_HASH_SIZE_SHA256];
 //extern bool key_pairing_success;
 extern uint8_t dis_passkey[6 + 1];
 
-static uint8_t random_nonce[8];
+static volatile uint8_t random_nonce[8];
 static volatile bool beacon_provisioned = false;
 static uint8_t owner_account_key[FP_CRYPTO_AES128_BLOCK_LEN];
 
@@ -897,30 +897,104 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
     {
        uint8_t data_id;
        uint8_t data_len;
-       size_t  len_out;
-       uint8_t rsp_buf[50];
+       size_t  len_out_para_read;
+       size_t  len_out_stat_read;
+       size_t  len_out_eik_set;
+       size_t  len_out_eik_clr;
+       uint8_t rsp_buf_para_read[50];
+       uint8_t rsp_buf_stat_read[20];
+        uint8_t rsp_buf_eik_set[50];
+         uint8_t rsp_buf_eik_clr[50];
+          ble_gatts_hvx_params_t     hvx_params;
        //NRF_LOG_INFO("beacon_actions_handles################################\n");
        data_id = p_evt_write->data[0];
        data_len = p_evt_write->data[1];
        switch (data_id) 
        {
 	case BEACON_ACTIONS_BEACON_PARAMETERS_READ:
-                 len_out = BEACON_PARAMETERS_RSP_LEN;
-		 beacon_parameters_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
+                 len_out_para_read = BEACON_PARAMETERS_RSP_LEN;
+		 beacon_parameters_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf_para_read);
+                 NRF_LOG_INFO("!!!!!!rsp_buf_para_read %x\n",len_out_para_read);
+                 print_hex("!!!rsp_buf_para_read",rsp_buf_para_read,len_out_para_read);
+                 //ble_gatts_hvx_params_t     hvx_params;
+      
+                 memset(&hvx_params, 0, sizeof(hvx_params));
+                 //len_out = 1+1+8;
+                 hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                 hvx_params.p_data = rsp_buf_para_read;
+                 hvx_params.p_len  = &len_out_para_read;
+                 hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                 err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                 if(NRF_SUCCESS != err_code)
+                 {
+                   NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                 }
 		break;
 	case BEACON_ACTIONS_PROVISIONING_STATE_READ:
                   //len_out = PROVISIONING_STATE_RSP_LEN;
-                  len_out = beacon_provisioned ? PROVISIONING_STATE_RSP_LEN :
+                  len_out_stat_read = beacon_provisioned ? PROVISIONING_STATE_RSP_LEN :
 		(PROVISIONING_STATE_RSP_LEN - PROVISIONING_STATE_RSP_EID_LEN);
-		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
+		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf_stat_read);
+
+                 NRF_LOG_INFO("!!!!!!rsp_buf_stat_read %x\n",len_out_stat_read);
+                 print_hex("!!!rsp_buf_stat_read",rsp_buf_stat_read,len_out_stat_read);
+                 //ble_gatts_hvx_params_t     hvx_params;
+      
+                 memset(&hvx_params, 0, sizeof(hvx_params));
+                 //len_out = 1+1+8;
+                 hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                 hvx_params.p_data = rsp_buf_stat_read;
+                 hvx_params.p_len  = &len_out_stat_read;
+                 hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                 err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                 if(NRF_SUCCESS != err_code)
+                 {
+                   NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                 }
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET:
-                len_out = 1+1+8;
-		ephemeral_identity_key_set_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
+                len_out_eik_set = 1+1+8;
+		ephemeral_identity_key_set_handle(p_evt_write->data,p_evt_write->len,rsp_buf_eik_set);
+
+                 NRF_LOG_INFO("!!!!!!rsp_buf_eik_set %x\n",len_out_eik_set);
+                 print_hex("!!!rsp_buf_eik_set",rsp_buf_eik_set,len_out_eik_set);
+                 //ble_gatts_hvx_params_t     hvx_params;
+      
+                 memset(&hvx_params, 0, sizeof(hvx_params));
+                 //len_out = 1+1+8;
+                 hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                 hvx_params.p_data = rsp_buf_eik_set;
+                 hvx_params.p_len  = &len_out_eik_set;
+                 hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                 err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                 if(NRF_SUCCESS != err_code)
+                 {
+                   NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                 }
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR:
-                len_out = EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_LEN;
-		ephemeral_identity_key_clear_handle(p_evt_write->data,p_evt_write->len,rsp_buf);
+                len_out_eik_clr = EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_LEN;
+		ephemeral_identity_key_clear_handle(p_evt_write->data,p_evt_write->len,rsp_buf_eik_clr);
+
+                NRF_LOG_INFO("!!!!!!rsp_buf_eik_clr %x\n",len_out_eik_clr);
+                 print_hex("!!!rsp_buf_eik_clr",rsp_buf_eik_clr,len_out_eik_clr);
+                 //ble_gatts_hvx_params_t     hvx_params;
+      
+                 memset(&hvx_params, 0, sizeof(hvx_params));
+                 //len_out = 1+1+8;
+                 hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                 hvx_params.p_data = rsp_buf_eik_clr;
+                 hvx_params.p_len  = &len_out_eik_clr;
+                 hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                 err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                 if(NRF_SUCCESS != err_code)
+                 {
+                   NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                 }
 		break;
 	case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_READ:
 		//res = ephemeral_identity_key_read_handle(conn, attr, &fmdn_beacon_actions_buf);
@@ -941,22 +1015,22 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 		NRF_LOG_ERROR("Beacon Actions: unrecognized request: data_id=%d", data_id);
 		
 	}
-        NRF_LOG_INFO("!!!!!!len_out %x\n",len_out);
-        print_hex("!!!rsp_buf",rsp_buf,len_out);
-      ble_gatts_hvx_params_t     hvx_params;
+      //  NRF_LOG_INFO("!!!!!!len_out %x\n",len_out);
+      //  print_hex("!!!rsp_buf",rsp_buf,len_out);
+      //ble_gatts_hvx_params_t     hvx_params;
       
-      memset(&hvx_params, 0, sizeof(hvx_params));
-      //len_out = 1+1+8;
-      hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
-      hvx_params.p_data = rsp_buf;
-      hvx_params.p_len  = &len_out;
-      hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+      //memset(&hvx_params, 0, sizeof(hvx_params));
+      ////len_out = 1+1+8;
+      //hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+      //hvx_params.p_data = rsp_buf1;
+      //hvx_params.p_len  = &len_out;
+      //hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
 
-      err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
-      if(NRF_SUCCESS != err_code)
-      {
-        NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
-      }
+      //err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+      //if(NRF_SUCCESS != err_code)
+      //{
+      //  NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+      //}
 
                       
 
@@ -1437,10 +1511,11 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
       {
         NRF_LOG_ERROR("nrf_crypto_hmac_finalize err %x\n",err_code);
       }
-    //print_hex(" Pauth_seg ", Pauth_seg, 8);
-    //print_hex(" local_auth_seg ", local_auth_seg, 8);
+    print_hex(" Pauth_seg ", Pauth_seg, 8);
+    print_hex(" local_auth_seg ", local_auth_seg, 8);
+    print_hex("account_key: ", accountkey_array[i].account_key, FP_ACCOUNT_KEY_LEN);
    if(!memcmp(local_auth_seg, Pauth_seg, FP_FMDN_AUTH_SEG_LEN))
-   {print_hex("account_key: ", accountkey_array[i].account_key, FP_ACCOUNT_KEY_LEN);
+   {//print_hex("account_key: ", accountkey_array[i].account_key, FP_ACCOUNT_KEY_LEN);
       memcpy(owner_account_key,accountkey_array[i].account_key,FP_ACCOUNT_KEY_LEN);
       return true;
    }
@@ -1571,20 +1646,20 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
     auth_data.data_len = req_data_len;
 
     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
-    //print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
+    print_hex(" auth_data_buf: ", auth_data_buf, auth_data_buf_len);
      //print_hex(" auth_segget ", auth_seg, 8);
     result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
     if(result == false)
     {
       return;
     }
-
+ NRF_LOG_INFO("###success\n");
     //NRF_LOG_INFO("provisioning_state_read_handle result %x provisoned %x\n",result,beacon_provisioned);
 
     /* Prepare response payload. */
     rsp_data_len = beacon_provisioned ? PROVISIONING_STATE_RSP_PAYLOAD_LEN :
 		(PROVISIONING_STATE_RSP_PAYLOAD_LEN - PROVISIONING_STATE_RSP_EID_LEN);
-     NRF_LOG_INFO("rsp_data_len %x\n",rsp_data_len);
+     //NRF_LOG_INFO("rsp_data_len %x\n",rsp_data_len);
     //uint8_t rsp_buf[PROVISIONING_STATE_RSP_LEN];
     rsp_buf[0] = BEACON_ACTIONS_PROVISIONING_STATE_READ;
     rsp_buf[1] = rsp_data_len;
@@ -1603,9 +1678,9 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
     auth_data_buf[auth_data_buf_len]=0x01;
     ++auth_data_buf_len;
-     NRF_LOG_INFO("auth_data_buf_len %x\n",auth_data_buf_len);
-    print_hex(" auth_data_bufrsp: ", auth_data_buf, auth_data_buf_len);
-     print_hex("owner_account_key:", owner_account_key, 16);
+     //NRF_LOG_INFO("auth_data_buf_len %x\n",auth_data_buf_len);
+    //print_hex(" auth_data_bufrsp: ", auth_data_buf, auth_data_buf_len);
+    // print_hex("owner_account_key:", owner_account_key, 16);
      nrf_crypto_hmac_context_t m_context;
      uint8_t local_auth_seg[NRF_CRYPTO_HASH_SIZE_SHA256] = {0};
      size_t local_auth_seg_len = sizeof(local_auth_seg);
