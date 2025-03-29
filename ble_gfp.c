@@ -500,7 +500,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         }
 
          // Alice can now use shared secret
-        print_hex(" shared secret: ", ecdh_secret, FP_CRYPTO_ECDH_SHARED_KEY_LEN);
+        //print_hex(" shared secret: ", ecdh_secret, FP_CRYPTO_ECDH_SHARED_KEY_LEN);
 
         nrf_crypto_hash_context_t   hash_context;
         //uint8_t  Anti_Spoofing_AES_Key[NRF_CRYPTO_HASH_SIZE_SHA256];
@@ -894,9 +894,11 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 
     }
     else if ((p_evt_write->handle == p_gfp->beacon_actions_handles.value_handle) )
-    {
+    {NRF_LOG_INFO("beacon_actions_handles################################\n");
+#if 0
        uint8_t data_id;
        uint8_t data_len;
+       int ret;
        size_t  len_out_para_read;
        size_t  len_out_stat_read;
        size_t  len_out_eik_set;
@@ -935,8 +937,11 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
                   //len_out = PROVISIONING_STATE_RSP_LEN;
                   len_out_stat_read = beacon_provisioned ? PROVISIONING_STATE_RSP_LEN :
 		(PROVISIONING_STATE_RSP_LEN - PROVISIONING_STATE_RSP_EID_LEN);
-		 provisioning_state_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf_stat_read);
-
+		 ret = provisioning_state_read_handle(p_evt_write->data,p_evt_write->len,rsp_buf_stat_read);
+                 if(ret == -1)
+                 {
+                  
+                 }
                  NRF_LOG_INFO("!!!!!!rsp_buf_stat_read %x\n",len_out_stat_read);
                  print_hex("!!!rsp_buf_stat_read",rsp_buf_stat_read,len_out_stat_read);
                  //ble_gatts_hvx_params_t     hvx_params;
@@ -1032,7 +1037,7 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
       //  NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
       //}
 
-                      
+ #endif                     
 
     }
     else
@@ -1040,56 +1045,244 @@ static void on_write(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
         // Do Nothing. This event is not relevant for this service.
     }
 }
-
+static uint8_t volatile rsp[1+8];
 static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
 {
     ble_gatts_evt_rw_authorize_request_t const * evt_rw_auth =
         &p_ble_evt->evt.gatts_evt.params.authorize_request;
+    ble_gatts_rw_authorize_reply_params_t        auth_read_params;
+        ble_gatts_rw_authorize_reply_params_t        auth_wr_params;
+                  ret_code_t                                   err_code;
 
-    uint8_t rsp[1+8];
-    if (evt_rw_auth->type != BLE_GATTS_AUTHORIZE_TYPE_READ)
-    {
-        // Unexpected operation
-        NRF_LOG_INFO(" W_AUTHORIZE_REQUEST Unexpected operation \n");
-        return;
-    }
+    //if (evt_rw_auth->type != BLE_GATTS_AUTHORIZE_TYPE_READ)
+    //{
+    //    // Unexpected operation
+    //    NRF_LOG_INFO(" W_AUTHORIZE_REQUEST Unexpected operation \n");
+    //    return;
+    //}
 
-    /* Update SD GATTS values of appropriate host before SD sends the Read Response */
-    if (evt_rw_auth->request.read.handle == p_gfp->beacon_actions_handles.value_handle)
+    if (evt_rw_auth->type == BLE_GATTS_AUTHORIZE_TYPE_READ)
     {
-            ret_code_t                                   err_code;
-            ble_gatts_rw_authorize_reply_params_t        auth_read_params;
+      /* Update SD GATTS values of appropriate host before SD sends the Read Response */
+      if (evt_rw_auth->request.read.handle == p_gfp->beacon_actions_handles.value_handle)
+      {
+
+             
           
-            ble_gatts_evt_rw_authorize_request_t const * p_read_auth =
-              &p_ble_evt->evt.gatts_evt.params.authorize_request;
+              //ble_gatts_evt_rw_authorize_request_t const * p_read_auth =
+              //  &p_ble_evt->evt.gatts_evt.params.authorize_request;
 
-        //NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST readrsp\n");
+          NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST read\n");
 
-        err_code = nrf_crypto_rng_vector_generate(random_nonce, 8);
-        if(NRF_SUCCESS != err_code)
+          err_code = nrf_crypto_rng_vector_generate(random_nonce, 8);
+          if(NRF_SUCCESS != err_code)
+          {
+                NRF_LOG_ERROR("nrf_crypto_rng_vector_generate err %x\n",err_code);
+          }
+          rsp[0] = BT_FAST_PAIR_FMDN_VERSION_MAJOR;
+          memcpy(rsp+1,random_nonce,8);
+          print_hex("random_rsp",rsp,9);
+
+
+          memset(&auth_read_params, 0, sizeof(auth_read_params));
+          auth_read_params.type                    = BLE_GATTS_AUTHORIZE_TYPE_READ;
+          auth_read_params.params.read.gatt_status = BLE_GATT_STATUS_SUCCESS;
+          //auth_read_params.params.read.offset      = p_read_auth->request.read.offset;
+          auth_read_params.params.read.offset      = 0;
+          auth_read_params.params.read.len         = 9;
+          auth_read_params.params.read.p_data      = rsp;
+          auth_read_params.params.read.update      = 1;
+
+          err_code = sd_ble_gatts_rw_authorize_reply(p_ble_evt->evt.gatts_evt.conn_handle,
+                                                     &auth_read_params);
+          if(NRF_SUCCESS != err_code)
+          {
+                NRF_LOG_ERROR("sd_ble_gatts_rw_authorize_reply err %x\n",err_code);
+          }
+      }
+    }
+    else if(evt_rw_auth->type == BLE_GATTS_AUTHORIZE_TYPE_WRITE)
+    {
+        if (evt_rw_auth->request.write.handle == p_gfp->beacon_actions_handles.value_handle )
         {
-              NRF_LOG_ERROR("nrf_crypto_rng_vector_generate err %x\n",err_code);
-        }
-        rsp[0] = BT_FAST_PAIR_FMDN_VERSION_MAJOR;
-        memcpy(rsp+1,random_nonce,8);
-        print_hex("random_nonce",random_nonce,8);
+           uint8_t data_id;
+           uint8_t data_len;
+           int ret;
+           size_t  len_out_para_read;
+           size_t  len_out_stat_read;
+           size_t  len_out_eik_set;
+           size_t  len_out_eik_clr;
+           uint8_t rsp_buf_para_read[50];
+           uint8_t rsp_buf_stat_read[20];
+            uint8_t rsp_buf_eik_set[50];
+             uint8_t rsp_buf_eik_clr[50];
+              ble_gatts_hvx_params_t     hvx_params;
+           NRF_LOG_INFO("ON W_AUTHORIZE_REQUEST write\n");
+           data_id = evt_rw_auth->request.write.data[0];
+           data_len = evt_rw_auth->request.write.data[1];
 
+#if 1
+           switch (data_id) 
+           {
+            case BEACON_ACTIONS_BEACON_PARAMETERS_READ:
+                     len_out_para_read = BEACON_PARAMETERS_RSP_LEN;
+                     beacon_parameters_read_handle(evt_rw_auth->request.write.data,evt_rw_auth->request.write.len,rsp_buf_para_read);
+                     NRF_LOG_INFO("!!!!!!rsp_buf_para_read %x\n",len_out_para_read);
+                     print_hex("!!!rsp_buf_para_read",rsp_buf_para_read,len_out_para_read);
+                     //ble_gatts_hvx_params_t     hvx_params;
+      
+                     memset(&hvx_params, 0, sizeof(hvx_params));
+                     //len_out = 1+1+8;
+                     hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                     hvx_params.p_data = rsp_buf_para_read;
+                     hvx_params.p_len  = &len_out_para_read;
+                     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
 
-        memset(&auth_read_params, 0, sizeof(auth_read_params));
-        auth_read_params.type                    = BLE_GATTS_AUTHORIZE_TYPE_READ;
-        auth_read_params.params.read.gatt_status = BLE_GATT_STATUS_SUCCESS;
-        auth_read_params.params.read.offset      = p_read_auth->request.read.offset;
-        auth_read_params.params.read.len         = 9;
-        auth_read_params.params.read.p_data      = &rsp;
-        auth_read_params.params.read.update      = 1;
+                     err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                     if(NRF_SUCCESS != err_code)
+                     {
+                       NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                     }
+                    break;
+            case BEACON_ACTIONS_PROVISIONING_STATE_READ:
+                      //len_out = PROVISIONING_STATE_RSP_LEN;
+                      len_out_stat_read = beacon_provisioned ? PROVISIONING_STATE_RSP_LEN :
+                    (PROVISIONING_STATE_RSP_LEN - PROVISIONING_STATE_RSP_EID_LEN);
+                     ret=provisioning_state_read_handle(evt_rw_auth->request.write.data,evt_rw_auth->request.write.len,rsp_buf_stat_read);
+                     if(ret == -1)
+                     {  NRF_LOG_INFO("stateerr\n");
+                        memset(&auth_wr_params, 0, sizeof(auth_wr_params));
+                        auth_wr_params.type                    = BLE_GATTS_AUTHORIZE_TYPE_WRITE;
+                        auth_wr_params.params.write.gatt_status = 0x80;
+                        //auth_read_params.params.read.offset      = p_read_auth->request.read.offset;
+                        //auth_read_params.params.read.offset      = 0;
+                        //auth_read_params.params.read.len         = 9;
+                        //auth_read_params.params.read.p_data      = rsp;
+                        //auth_read_params.params.read.update      = 1;
+  
+                     }
+                     else
+                     {NRF_LOG_INFO("replysucc\n");
+                         memset(&auth_wr_params, 0, sizeof(auth_wr_params));
+                        auth_wr_params.type                    = BLE_GATTS_AUTHORIZE_TYPE_WRITE;
+                        auth_wr_params.params.write.gatt_status = BLE_GATT_STATUS_SUCCESS;
+                     }
+                     auth_wr_params.params.write.update = 1;
 
-        err_code = sd_ble_gatts_rw_authorize_reply(p_ble_evt->evt.gap_evt.conn_handle,
-                                                   &auth_read_params);
-        if(NRF_SUCCESS != err_code)
-        {
-              NRF_LOG_ERROR("sd_ble_gatts_rw_authorize_reply err %x\n",err_code);
+                     err_code = sd_ble_gatts_rw_authorize_reply(p_ble_evt->evt.gatts_evt.conn_handle,
+                                                                   &auth_wr_params);
+                     if(NRF_SUCCESS != err_code)
+                     {
+                              NRF_LOG_ERROR("sd_ble_gatts_rw_authorize_reply err %x\n",err_code);
+                     }
+                     if(ret == -1)
+                     {
+                        return;
+                     }
+
+                     NRF_LOG_INFO("!!!!!!rsp_buf_stat_read %x\n",len_out_stat_read);
+                     print_hex("!!!rsp_buf_stat_read",rsp_buf_stat_read,len_out_stat_read);
+                     //ble_gatts_hvx_params_t     hvx_params;
+      
+                     memset(&hvx_params, 0, sizeof(hvx_params));
+                     //len_out = 1+1+8;
+                     hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                     hvx_params.p_data = rsp_buf_stat_read;
+                     hvx_params.p_len  = &len_out_stat_read;
+                     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                     err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+
+                     if(NRF_SUCCESS != err_code)
+                     {
+                       NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                     }
+                    break;
+            case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET:
+                    len_out_eik_set = 1+1+8;
+                    ephemeral_identity_key_set_handle(evt_rw_auth->request.write.data,evt_rw_auth->request.write.len,rsp_buf_eik_set);
+
+                     NRF_LOG_INFO("!!!!!!rsp_buf_eik_set %x\n",len_out_eik_set);
+                     print_hex("!!!rsp_buf_eik_set",rsp_buf_eik_set,len_out_eik_set);
+                     //ble_gatts_hvx_params_t     hvx_params;
+      
+                     memset(&hvx_params, 0, sizeof(hvx_params));
+                     //len_out = 1+1+8;
+                     hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                     hvx_params.p_data = rsp_buf_eik_set;
+                     hvx_params.p_len  = &len_out_eik_set;
+                     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                     err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                     if(NRF_SUCCESS != err_code)
+                     {
+                       NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                     }
+                    break;
+            case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR:
+                    len_out_eik_clr = EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_LEN;
+                    ephemeral_identity_key_clear_handle(evt_rw_auth->request.write.data,evt_rw_auth->request.write.len,rsp_buf_eik_clr);
+
+                    NRF_LOG_INFO("!!!!!!rsp_buf_eik_clr %x\n",len_out_eik_clr);
+                     print_hex("!!!rsp_buf_eik_clr",rsp_buf_eik_clr,len_out_eik_clr);
+                     //ble_gatts_hvx_params_t     hvx_params;
+      
+                     memset(&hvx_params, 0, sizeof(hvx_params));
+                     //len_out = 1+1+8;
+                     hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+                     hvx_params.p_data = rsp_buf_eik_clr;
+                     hvx_params.p_len  = &len_out_eik_clr;
+                     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+                     err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+                     if(NRF_SUCCESS != err_code)
+                     {
+                       NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+                     }
+                    break;
+            case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_READ:
+                    //res = ephemeral_identity_key_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+                    break;
+            case BEACON_ACTIONS_RING:
+                    //res = ring_handle(conn, attr, &fmdn_beacon_actions_buf);
+                    break;
+            case BEACON_ACTIONS_RINGING_STATE_READ:
+                    //res = ringing_state_read_handle(conn, attr, &fmdn_beacon_actions_buf);
+                    
+                    break;
+            case BEACON_ACTIONS_ACTIVATE_UTP_MODE:
+                    //res = activate_utp_mode_handle(conn, attr, &fmdn_beacon_actions_buf);
+                    break;
+            case BEACON_ACTIONS_DEACTIVATE_UTP_MODE:
+                    //res = deactivate_utp_mode_handle(conn, attr, &fmdn_beacon_actions_buf);
+                    break;
+            default:
+                    NRF_LOG_ERROR("Beacon Actions: unrecognized request: data_id=%d", data_id);
+		
+            }
+#endif
+          //  NRF_LOG_INFO("!!!!!!len_out %x\n",len_out);
+          //  print_hex("!!!rsp_buf",rsp_buf,len_out);
+          //ble_gatts_hvx_params_t     hvx_params;
+      
+          //memset(&hvx_params, 0, sizeof(hvx_params));
+          ////len_out = 1+1+8;
+          //hvx_params.handle = p_gfp->beacon_actions_handles.value_handle;
+          //hvx_params.p_data = rsp_buf1;
+          //hvx_params.p_len  = &len_out;
+          //hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+
+          //err_code = sd_ble_gatts_hvx(p_ble_evt->evt.gatts_evt.conn_handle, &hvx_params);
+          //if(NRF_SUCCESS != err_code)
+          //{
+          //  NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
+          //}
+
+                      
+
         }
     }
+    
 }
 
 void ble_gfp_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
@@ -1159,6 +1352,8 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
      // Add a custom base UUID.
     err_code = sd_ble_uuid_vs_add(&gfp_character_base_uuid, &character_uuid_type);
     VERIFY_SUCCESS(err_code);
+
+#if 0
     // Add the RX Characteristic.
     memset(&add_char_params, 0, sizeof(add_char_params));
     add_char_params.uuid                     = BLE_UUID_GFP_MODEL_ID_CHARACTERISTIC;
@@ -1174,7 +1369,7 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
     //add_char_params.char_props.write_wo_resp = 1;
     add_char_params.read_access  = SEC_OPEN;
     add_char_params.write_access = SEC_OPEN;
-#if 1
+
     err_code = characteristic_add(p_gfp->service_handle, &add_char_params, &p_gfp->model_id_handles);
     if (err_code != NRF_SUCCESS)
     {
@@ -1232,7 +1427,7 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
     memset(&add_char_params, 0, sizeof(add_char_params));
     add_char_params.uuid              = BLE_UUID_GFP_ACCOUNT_KEY_CHARACTERISTIC;
     add_char_params.uuid_type         = character_uuid_type;
-    add_char_params.max_len           = 50;
+    add_char_params.max_len           = 100;
     add_char_params.init_len          = sizeof(uint8_t);
     add_char_params.is_var_len        = true;
     //add_char_params.char_props.notify = 1;
@@ -1249,6 +1444,7 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
         return err_code;
     }
 
+#if 0
 //NRF_LOG_INFO("6\n"); 
     // Add the addi data Characteristic.
     /**@snippet [Adding proprietary characteristic to the SoftDevice] */
@@ -1271,20 +1467,20 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
     {
         return err_code;
     }
-
+#endif
     // Add the beacon actions Characteristic.
     /**@snippet [Adding proprietary characteristic to the SoftDevice] */
     memset(&add_char_params, 0, sizeof(add_char_params));
     add_char_params.uuid              = BLE_UUID_GFP_BEACON_ACTIONS_CHARACTERISTIC;
     add_char_params.uuid_type         = character_uuid_type;
-    add_char_params.max_len           = 50;
+    add_char_params.max_len           = 100;
     add_char_params.init_len          = sizeof(uint8_t);
     add_char_params.is_var_len        = true;
     add_char_params.char_props.notify = 1;
     add_char_params.char_props.write  = 1;
     add_char_params.char_props.read   = 1;
     add_char_params.is_defered_read = true;
-  //add_char_params.is_defered_write = true;
+    add_char_params.is_defered_write = true;
     add_char_params.read_access       = SEC_OPEN;
     add_char_params.write_access      = SEC_OPEN;
     add_char_params.cccd_write_access = SEC_OPEN;
@@ -1404,7 +1600,7 @@ int fp_adv_data_fill_non_discoverable(uint8_t * service_data_nondis , size_t  * 
     //m_random_vector[1]=0x6b;
     salt = (m_random_vector[0] << 8) | m_random_vector[1];
 NRF_LOG_INFO("salt ** %x\n",salt);
-    service_data_nondis[1] = ((ak_filter_size) << 4) | (FP_FIELD_TYPE_SHOW_PAIRING_UI_INDICATION);
+    service_data_nondis[1] = ((ak_filter_size) << 4) | (FP_FIELD_TYPE_HIDE_PAIRING_UI_INDICATION);
 		
     err_code = fp_crypto_account_key_filter((service_data_nondis+2),
 						   account_key_cnt, salt);
@@ -1513,7 +1709,7 @@ static bool account_key_find_iterator(uint8_t *auth_data_buf, size_t auth_data_b
       }
     print_hex(" Pauth_seg ", Pauth_seg, 8);
     print_hex(" local_auth_seg ", local_auth_seg, 8);
-    print_hex("account_key: ", accountkey_array[i].account_key, FP_ACCOUNT_KEY_LEN);
+    //print_hex("account_key: ", accountkey_array[i].account_key, FP_ACCOUNT_KEY_LEN);
    if(!memcmp(local_auth_seg, Pauth_seg, FP_FMDN_AUTH_SEG_LEN))
    {//print_hex("account_key: ", accountkey_array[i].account_key, FP_ACCOUNT_KEY_LEN);
       memcpy(owner_account_key,accountkey_array[i].account_key,FP_ACCOUNT_KEY_LEN);
@@ -1637,6 +1833,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
     static const uint8_t req_data_len = PROVISIONING_STATE_REQ_PAYLOAD_LEN;
     uint8_t rsp_data_len;
     struct fp_fmdn_auth_data auth_data;
+    print_hex(" comedata", data, len);
      //NRF_LOG_INFO("provisioning_state_read_handle ##########################\n");
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
 
@@ -1651,7 +1848,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
     result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
     if(result == false)
     {
-      return;
+      return -1;
     }
  NRF_LOG_INFO("###success\n");
     //NRF_LOG_INFO("provisioning_state_read_handle result %x provisoned %x\n",result,beacon_provisioned);
@@ -1713,7 +1910,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
       memcpy(rsp_buf+BEACON_ACTIONS_HEADER_LEN,local_auth_seg,FP_FMDN_AUTH_SEG_LEN);
      //  print_hex(" rsp_buf ", rsp_buf, PROVISIONING_STATE_RSP_LEN);
     
-
+return 0;
 
 
 }

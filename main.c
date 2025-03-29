@@ -94,7 +94,7 @@
 
 #define SHIFT_BUTTON_ID                     1                                          /**< Button used as 'SHIFT' Key. */
 
-#define DEVICE_NAME                         "Nordic_Keyboard"                          /**< Name of device. Will be included in the advertising data. */
+#define DEVICE_NAME                         "locator tag"                          /**< Name of device. Will be included in the advertising data. */
 #define MANUFACTURER_NAME                   "NordicSemiconductor"                      /**< Manufacturer. Will be passed to Device Information Service. */
 
 #define APP_BLE_OBSERVER_PRIO               3                                          /**< Application's BLE observer priority. You shouldn't need to modify this value. */
@@ -118,10 +118,10 @@
 
 
 /*lint -emacro(524, MIN_CONN_INTERVAL) // Loss of precision */
-#define MIN_CONN_INTERVAL                   MSEC_TO_UNITS(10, UNIT_1_25_MS)           /**< Minimum connection interval (7.5 ms) */
-#define MAX_CONN_INTERVAL                   MSEC_TO_UNITS(100, UNIT_1_25_MS)            /**< Maximum connection interval (30 ms). */
+#define MIN_CONN_INTERVAL                   MSEC_TO_UNITS(30, UNIT_1_25_MS)           /**< Minimum connection interval (7.5 ms) */
+#define MAX_CONN_INTERVAL                   MSEC_TO_UNITS(50, UNIT_1_25_MS)            /**< Maximum connection interval (30 ms). */
 #define SLAVE_LATENCY                       0                                       /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                    MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (430 ms). */
+#define CONN_SUP_TIMEOUT                    MSEC_TO_UNITS(1000, UNIT_10_MS)             /**< Connection supervisory timeout (430 ms). */
 
 #define FIRST_CONN_PARAMS_UPDATE_DELAY      APP_TIMER_TICKS(5000)                      /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY       APP_TIMER_TICKS(30000)                     /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
@@ -219,7 +219,7 @@ typedef struct
 STATIC_ASSERT(sizeof(buffer_list_t) % 4 == 0);
 
 BLE_GFP_DEF(m_gfp);
-APP_TIMER_DEF(m_battery_timer_id);                                  /**< Battery timer. */
+//APP_TIMER_DEF(m_battery_timer_id);                                  /**< Battery timer. */
 APP_TIMER_DEF(fmdn_timer_id);
 BLE_HIDS_DEF(m_hids,                                                /**< Structure used to identify the HID service. */
              NRF_SDH_BLE_TOTAL_LINK_COUNT,
@@ -482,10 +482,10 @@ static void timers_init(void)
     APP_ERROR_CHECK(err_code);
 
     // Create battery timer.
-    err_code = app_timer_create(&m_battery_timer_id,
+   /* err_code = app_timer_create(&m_battery_timer_id,
                                 APP_TIMER_MODE_REPEATED,
                                 battery_level_meas_timeout_handler);
-    APP_ERROR_CHECK(err_code);
+    APP_ERROR_CHECK(err_code);*/
     // Create battery timer.
     err_code = app_timer_create(&fmdn_timer_id,
                                 APP_TIMER_MODE_REPEATED,
@@ -512,7 +512,7 @@ static void gap_params_init(void)
                                           strlen(DEVICE_NAME));
     APP_ERROR_CHECK(err_code);
 
-    err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_HID_KEYBOARD);
+    err_code = sd_ble_gap_appearance_set(BLE_APPEARANCE_UNKNOWN);
     APP_ERROR_CHECK(err_code);
 
     memset(&gap_conn_params, 0, sizeof(gap_conn_params));
@@ -747,8 +747,8 @@ static void hids_init(void)
 static void services_init(void)
 {
     qwr_init();
-    dis_init();
-    bas_init();
+   // dis_init();
+  //  bas_init();
  //   hids_init();
 
     ret_code_t         err_code;
@@ -825,8 +825,8 @@ static void timers_start(void)
 {
     ret_code_t err_code;
 
-    err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
-    APP_ERROR_CHECK(err_code);
+    //err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
+    //APP_ERROR_CHECK(err_code);
     err_code = app_timer_start(fmdn_timer_id, APP_TIMER_TICKS(1000), NULL);
     APP_ERROR_CHECK(err_code);
 }
@@ -1349,11 +1349,11 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // disabling alert 3. signal - used for capslock ON
             err_code = bsp_indication_set(BSP_INDICATE_ALERT_OFF);
             APP_ERROR_CHECK(err_code);
-            if(false == ex_only_once)
+            //if(false == ex_only_once)
             {
               advertising_init_nondiscoverable();
               advertising_start(false);
-              ex_only_once = true;
+              //ex_only_once = true;
             }
             //advertising_start(false);
             break; // BLE_GAP_EVT_DISCONNECTED
@@ -1653,9 +1653,11 @@ static void advertising_init_nondiscoverable(void)
     init.srdata.include_appearance = false;
 
 
-    //init.config.ble_adv_on_disconnect_disabled = true;
+    init.config.ble_adv_on_disconnect_disabled = true;
     init.config.ble_adv_fast_enabled               = true;
-    init.config.ble_adv_fast_interval              = APP_ADV_FAST_INTERVAL;
+    //init.config.ble_adv_fast_interval              = APP_ADV_FAST_INTERVAL;
+   init.config.ble_adv_fast_interval              = 500;
+
     init.config.ble_adv_fast_timeout               = APP_ADV_FAST_DURATION;
 
 
