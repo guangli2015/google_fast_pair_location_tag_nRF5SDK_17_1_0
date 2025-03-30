@@ -1485,6 +1485,7 @@ uint32_t ble_gfp_init(ble_gfp_t * p_gfp, ble_gfp_init_t const * p_gfp_init)
     add_char_params.write_access      = SEC_OPEN;
     add_char_params.cccd_write_access = SEC_OPEN;
 
+
     err_code = characteristic_add(p_gfp->service_handle, &add_char_params, &p_gfp->beacon_actions_handles);
     if (err_code != NRF_SUCCESS)
     {

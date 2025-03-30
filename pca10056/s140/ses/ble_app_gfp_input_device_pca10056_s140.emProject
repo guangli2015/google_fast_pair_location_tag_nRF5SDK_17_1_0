@@ -125,6 +125,7 @@
       <file file_name="../config/sdk_config.h" />
       <file file_name="../../../ble_gfp.c" />
       <file file_name="../../../ble_gfp.h" />
+      <file file_name="../../../ble_anos.c" />
     </folder>
     <folder Name="nRF_Segger_RTT">
       <file file_name="../../../../../../external/segger_rtt/SEGGER_RTT.c" />
