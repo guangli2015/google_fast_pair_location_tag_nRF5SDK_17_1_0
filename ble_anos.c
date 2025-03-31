@@ -81,7 +81,7 @@ static void on_au_rw(ble_anos_t * p_anos, ble_evt_t const * p_ble_evt)
     else if(evt_rw_auth->type == BLE_GATTS_AUTHORIZE_TYPE_WRITE)
     {
        if (evt_rw_auth->request.write.handle == p_anos->ano_handles.value_handle )
-        {   NRF_LOG_INFO("anos wr######## %x\n",evt_rw_auth->request.write.data[0]);
+        {   NRF_LOG_INFO("anos wr########\n");
                    
          
            memset(&auth_wr_params, 0, sizeof(auth_wr_params));

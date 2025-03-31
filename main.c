@@ -276,6 +276,7 @@ static uint8_t m_caps_off_key_scan_str[] = /**< Key pattern to be sent when the 
 //bool key_pairing_success = false;
 volatile uint32_t  fmdn_clock = 0;//sec
 extern uint8_t fmdn_service_data[32+2];
+extern volatile bool beacon_provisioned;
 static void advertising_init_nondiscoverable(void);
 static void on_hids_evt(ble_hids_t * p_hids, ble_hids_evt_t * p_evt);
 
@@ -471,6 +472,7 @@ static void battery_level_meas_timeout_handler(void * p_context)
 
 static void system_uptime_handler(void) {
     ++fmdn_clock;
+    //NRF_LOG_INFO("cl: %d ",fmdn_clock);
 }
 /**@brief Function for the Timer initialization.
  *
@@ -1353,7 +1355,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             // disabling alert 3. signal - used for capslock ON
             err_code = bsp_indication_set(BSP_INDICATE_ALERT_OFF);
             APP_ERROR_CHECK(err_code);
-            //if(false == ex_only_once)
+            if(false == beacon_provisioned)
             {
               advertising_init_nondiscoverable();
               advertising_start(false);
@@ -1724,7 +1726,7 @@ static void advertising_init_fmdn(void)
     m_advertising.adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
     m_advertising.adv_params.filter_policy = BLE_GAP_ADV_FP_ANY;
     m_advertising.adv_params.duration = 0;
-    m_advertising.adv_params.interval = APP_ADV_FAST_INTERVAL;
+    m_advertising.adv_params.interval = 3200;
     
   
     sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV, m_advertising.adv_handle, 0);
