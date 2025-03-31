@@ -42,14 +42,15 @@
 #include "ble.h"
 //#include "ble_nus.h"
 #include "ble_srv_common.h"
+#include "ble_anos.h"
 
-#define NRF_LOG_MODULE_NAME ble_nus
+#define NRF_LOG_MODULE_NAME ble_anos
 #if BLE_NUS_CONFIG_LOG_ENABLED
 #define NRF_LOG_LEVEL       BLE_NUS_CONFIG_LOG_LEVEL
 #define NRF_LOG_INFO_COLOR  BLE_NUS_CONFIG_INFO_COLOR
 #define NRF_LOG_DEBUG_COLOR BLE_NUS_CONFIG_DEBUG_COLOR
 #else // BLE_NUS_CONFIG_LOG_ENABLED
-#define NRF_LOG_LEVEL       0
+#define NRF_LOG_LEVEL      4
 #endif // BLE_NUS_CONFIG_LOG_ENABLED
 #include "nrf_log.h"
 NRF_LOG_MODULE_REGISTER();
@@ -58,21 +59,85 @@ NRF_LOG_MODULE_REGISTER();
 #define BLE_UUID_ANOS_CHARACTERISTIC 0x0001               /**< The UUID of the TX Characteristic. */
 
 
-#define BLE_NUS_MAX_RX_CHAR_LEN        BLE_NUS_MAX_DATA_LEN /**< Maximum length of the RX Characteristic (in bytes). */
-#define BLE_NUS_MAX_TX_CHAR_LEN        BLE_NUS_MAX_DATA_LEN /**< Maximum length of the TX Characteristic (in bytes). */
+
 
 #define ANOS_BASE_UUID                  {{0x85, 0x2A, 0x9F, 0x57, 0xC5, 0x2A, 0xED, 0x88, 0x26, 0xC2, 0xF4, 0x12, 0x00, 0x00, 0x19, 0x15}} /**< Used vendor specific UUID. */
 #define ANOS_CHARACTERISTIC_BASE_UUID      {{0x0E, 0x68, 0x21, 0x74, 0x37, 0x48, 0x61, 0xBF, 0x92, 0xFB, 0x68, 0x1D, 0x00, 0x00, 0x0C, 0x8E}} /**< Used vendor specific UUID. */
 
-
-struct ble_anos_s
+static void on_au_rw(ble_anos_t * p_anos, ble_evt_t const * p_ble_evt)
 {
-    uint8_t                         uuid_type;          /**< UUID type for Nordic UART Service Base UUID. */
-    uint16_t                        service_handle;     /**< Handle of Nordic UART Service (as provided by the SoftDevice). */
-    ble_gatts_char_handles_t        ano_handles;         /**< Handles related to the TX characteristic (as provided by the SoftDevice). */
+    ble_gatts_evt_rw_authorize_request_t const * evt_rw_auth =
+        &p_ble_evt->evt.gatts_evt.params.authorize_request;
+    //ble_gatts_rw_authorize_reply_params_t        auth_read_params;
+        ble_gatts_rw_authorize_reply_params_t        auth_wr_params;
+                  ret_code_t                                   err_code;
 
-};
-typedef struct ble_anos_s ble_anos_t;
+
+    if (evt_rw_auth->type == BLE_GATTS_AUTHORIZE_TYPE_READ)
+    {
+      /* Update SD GATTS values of appropriate host before SD sends the Read Response */
+   
+    }
+    else if(evt_rw_auth->type == BLE_GATTS_AUTHORIZE_TYPE_WRITE)
+    {
+       if (evt_rw_auth->request.write.handle == p_anos->ano_handles.value_handle )
+        {   NRF_LOG_INFO("anos wr######## %x\n",evt_rw_auth->request.write.data[0]);
+                   
+         
+           memset(&auth_wr_params, 0, sizeof(auth_wr_params));
+           auth_wr_params.type = BLE_GATTS_AUTHORIZE_TYPE_WRITE;
+           auth_wr_params.params.write.gatt_status = BLE_GATT_STATUS_SUCCESS;
+                     
+           auth_wr_params.params.write.update = 1;
+
+           err_code = sd_ble_gatts_rw_authorize_reply(p_ble_evt->evt.gatts_evt.conn_handle,
+                                                                   &auth_wr_params);
+            if(NRF_SUCCESS != err_code)
+             {
+               NRF_LOG_ERROR("sd_ble_gatts_rw_authorize_reply err %x\n",err_code);
+             }
+        }
+
+    }
+}
+
+
+void ble_anos_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
+{
+    if ((p_context == NULL) || (p_ble_evt == NULL))
+    {
+        return;
+    }
+
+    ble_anos_t * p_anos = (ble_anos_t *)p_context;
+
+    switch (p_ble_evt->header.evt_id)
+    {
+        case BLE_GAP_EVT_CONNECTED:
+            //on_connect(p_gfp, p_ble_evt);
+            break;
+
+        case BLE_GATTS_EVT_WRITE:
+            //on_write(p_gfp, p_ble_evt);
+            break;
+        case BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST:
+            NRF_LOG_INFO("anos W_AUTHORIZE_REQUEST");
+            on_au_rw(p_anos, p_ble_evt);
+
+            break;
+
+        case BLE_GATTS_EVT_HVN_TX_COMPLETE:
+            //on_hvx_tx_complete(p_gfp, p_ble_evt);
+            break;
+
+        default:
+            // No implementation needed.
+            break;
+    }
+}
+
+
+//typedef struct ble_anos_s ble_anos_t;
 
 uint32_t ble_anos_init(ble_anos_t * p_anos)
 {

@@ -91,7 +91,7 @@
 
 #include "nrf_ble_lesc.h"
 #include "ble_gfp.h"
-
+#include "ble_anos.h"
 #define SHIFT_BUTTON_ID                     1                                          /**< Button used as 'SHIFT' Key. */
 
 #define DEVICE_NAME                         "locator tag"                          /**< Name of device. Will be included in the advertising data. */
@@ -219,6 +219,8 @@ typedef struct
 STATIC_ASSERT(sizeof(buffer_list_t) % 4 == 0);
 
 BLE_GFP_DEF(m_gfp);
+BLE_ANOS_DEF(m_anos);
+
 //APP_TIMER_DEF(m_battery_timer_id);                                  /**< Battery timer. */
 APP_TIMER_DEF(fmdn_timer_id);
 BLE_HIDS_DEF(m_hids,                                                /**< Structure used to identify the HID service. */
@@ -760,6 +762,8 @@ static void services_init(void)
     gfp_init.data_handler = NULL;
 
     err_code = ble_gfp_init(&m_gfp, &gfp_init);
+    APP_ERROR_CHECK(err_code);
+    err_code = ble_anos_init(&m_anos);
     APP_ERROR_CHECK(err_code);
 }
 
