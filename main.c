@@ -1571,7 +1571,7 @@ static void advertising_init(void)
     ble_advertising_init_t init;
     uint8_t service_data[] = {0x4a, 0x43, 0x6b}; // Example service data
     int8_t tx_power = 0xf2;
-
+ NRF_LOG_INFO("advertising_init\n");
     memset(&init, 0, sizeof(init));
 
 
@@ -1687,7 +1687,7 @@ static void advertising_init_fmdn(void)
     int8_t tx_power = 0xf2;
 
     memset(&init, 0, sizeof(init));
-
+  NRF_LOG_INFO("advertising_init_fmdn###\n");
 
     init.advdata.name_type               = BLE_ADVDATA_NO_NAME;
     init.advdata.include_appearance      = false;
@@ -1709,7 +1709,7 @@ static void advertising_init_fmdn(void)
 
      init.config.ble_adv_on_disconnect_disabled = true;
     init.config.ble_adv_fast_enabled               = true;
-    init.config.ble_adv_fast_interval              = APP_ADV_FAST_INTERVAL;
+    init.config.ble_adv_fast_interval              = 3200;
     init.config.ble_adv_fast_timeout               = APP_ADV_FAST_DURATION;
     init.config.ble_adv_extended_enabled  = true; // Enable extended advertising
 
@@ -1721,22 +1721,24 @@ static void advertising_init_fmdn(void)
     APP_ERROR_CHECK(err_code);
 
         
-    m_advertising.adv_params.primary_phy = BLE_GAP_PHY_1MBPS;
-    m_advertising.adv_params.secondary_phy = BLE_GAP_PHY_1MBPS;
-    m_advertising.adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
-    m_advertising.adv_params.filter_policy = BLE_GAP_ADV_FP_ANY;
-    m_advertising.adv_params.duration = 0;
-    m_advertising.adv_params.interval = 3200;
+    //m_advertising.adv_params.primary_phy = BLE_GAP_PHY_1MBPS;
+    //m_advertising.adv_params.secondary_phy = BLE_GAP_PHY_1MBPS;
+    //m_advertising.adv_params.properties.type = BLE_GAP_ADV_TYPE_EXTENDED_CONNECTABLE_NONSCANNABLE_UNDIRECTED;
+    //m_advertising.adv_params.filter_policy = BLE_GAP_ADV_FP_ANY;
+    //m_advertising.adv_params.duration = 0;
+    //m_advertising.adv_params.interval = 3200;
     
   
     sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV, m_advertising.adv_handle, 0);
     
    
-    err_code = sd_ble_gap_adv_set_configure(&m_advertising.adv_handle, NULL, &m_advertising.adv_params);
-    APP_ERROR_CHECK(err_code);
+    //err_code = sd_ble_gap_adv_set_configure(&m_advertising.adv_handle, NULL, &m_advertising.adv_params);
+    //APP_ERROR_CHECK(err_code);
 
     ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
+
+
 
 void fmdn_adv_set_setup()
 {
@@ -1825,7 +1827,9 @@ int main(void)
     scheduler_init();
     gap_params_init();
     gatt_init();
-    advertising_init();
+    //advertising_init();
+    advertising_init_fmdn();
+    //advertising_init_fmdn_ori();
     services_init();
     sensor_simulator_init();
     conn_params_init();
