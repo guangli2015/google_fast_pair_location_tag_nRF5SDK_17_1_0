@@ -2213,7 +2213,7 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
     {
       NRF_LOG_ERROR("calculate_secp256r1_point err %x\n",err_code);
     }
-     print_hex(" eid_seed_buf: ", eid_seed_buf, FMDN_EID_SEED_LEN);
+     //print_hex(" eid_seed_buf: ", eid_seed_buf, FMDN_EID_SEED_LEN);
 
      nrf_crypto_hash_context_t   hash_context;
      //uint8_t  Anti_Spoofing_AES_Key[NRF_CRYPTO_HASH_SIZE_SHA256];
@@ -2254,8 +2254,10 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
 
      fmdn_service_data[0]= 0x40;
      memcpy(fmdn_service_data+1,fmdn_eid,32);
-     fmdn_service_data[01+32]= hashed_flags_byte;
+     fmdn_service_data[1+32]= hashed_flags_byte;
  beacon_provisioned = true;
+ print_hex(" fmdn_service_data: ", fmdn_service_data, 34);
+ //fmdn_adv_set_stop();
      fmdn_adv_set_setup();
     
 
@@ -2367,6 +2369,7 @@ static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_
      memset(fmdn_eid,0,32);
      
      fmdn_adv_set_stop();
+     beacon_provisioned = false;
 
      rsp_buf[0] = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
      rsp_buf[1] = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;

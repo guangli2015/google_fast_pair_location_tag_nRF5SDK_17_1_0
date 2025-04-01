@@ -1662,7 +1662,7 @@ static void advertising_init_nondiscoverable(void)
     init.config.ble_adv_on_disconnect_disabled = true;
     init.config.ble_adv_fast_enabled               = true;
     //init.config.ble_adv_fast_interval              = APP_ADV_FAST_INTERVAL;
-   init.config.ble_adv_fast_interval              = 500;
+   init.config.ble_adv_fast_interval              = 400;
 
     init.config.ble_adv_fast_timeout               = APP_ADV_FAST_DURATION;
 
@@ -1707,7 +1707,7 @@ static void advertising_init_fmdn(void)
     init.srdata.include_appearance = false;
 
 
-     init.config.ble_adv_on_disconnect_disabled = true;
+     //init.config.ble_adv_on_disconnect_disabled = true;
     init.config.ble_adv_fast_enabled               = true;
     init.config.ble_adv_fast_interval              = 3200;
     init.config.ble_adv_fast_timeout               = APP_ADV_FAST_DURATION;
@@ -1827,8 +1827,8 @@ int main(void)
     scheduler_init();
     gap_params_init();
     gatt_init();
-    //advertising_init();
-    advertising_init_fmdn();
+    advertising_init();
+    //advertising_init_fmdn();
     //advertising_init_fmdn_ori();
     services_init();
     sensor_simulator_init();
@@ -1840,6 +1840,9 @@ int main(void)
     NRF_LOG_INFO("google fast pair input device example started.");
     timers_start();
     advertising_start(erase_bonds);
+
+    //fmdn_adv_set_stop();
+    //fmdn_adv_set_setup();
 
     // Enter main loop.
     for (;;)
