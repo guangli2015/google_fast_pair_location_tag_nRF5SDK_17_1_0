@@ -324,6 +324,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
 static int beacon_parameters_read_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
 static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf);
+extern void fmdn_adv_set_setup();
 
 static size_t fp_crypto_account_key_filter_size(size_t n)
 {
@@ -1113,7 +1114,7 @@ static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
            size_t  len_out_eik_set;
            size_t  len_out_eik_clr;
            uint8_t rsp_buf_para_read[50];
-           uint8_t rsp_buf_stat_read[20];
+           uint8_t rsp_buf_stat_read[50];
             uint8_t rsp_buf_eik_set[50];
              uint8_t rsp_buf_eik_clr[50];
               ble_gatts_hvx_params_t     hvx_params;
@@ -1192,8 +1193,8 @@ static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
                         return;
                      }
 
-                     //NRF_LOG_INFO("!!!!!!rsp_buf_stat_read %x\n",len_out_stat_read);
-                     //print_hex("!!!rsp_buf_stat_read",rsp_buf_stat_read,len_out_stat_read);
+                     NRF_LOG_INFO("!!!!!!rsp_buf_stat_read %x\n",len_out_stat_read);
+                     print_hex("!!!rsp_buf_stat_read",rsp_buf_stat_read,len_out_stat_read);
                      //ble_gatts_hvx_params_t     hvx_params;
       
                      memset(&hvx_params, 0, sizeof(hvx_params));
@@ -1243,6 +1244,8 @@ static void on_read(ble_gfp_t * p_gfp, ble_evt_t const * p_ble_evt)
                      {
                        NRF_LOG_ERROR("sd_ble_gatts_hvx err %x\n",err_code);
                      }
+
+                     fmdn_adv_set_setup();
                     break;
             case BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR:
                     len_out_eik_clr = EPHEMERAL_IDENTITY_KEY_CLEAR_RSP_LEN;
@@ -1896,7 +1899,7 @@ static int provisioning_state_read_handle(uint8_t *data,uint16_t len,uint8_t *rs
     {
       return -1;
     }
- //NRF_LOG_INFO("###success\n");
+ NRF_LOG_INFO("###success\n");
     //NRF_LOG_INFO("provisioning_state_read_handle result %x provisoned %x\n",result,beacon_provisioned);
 
     /* Prepare response payload. */
@@ -2119,7 +2122,7 @@ cleanup:
 
 }
 
-extern void fmdn_adv_set_setup();
+
 static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t *rsp_buf)
 {
     uint8_t auth_seg[FP_FMDN_AUTH_SEG_LEN];
@@ -2258,7 +2261,7 @@ static int ephemeral_identity_key_set_handle(uint8_t *data,uint16_t len,uint8_t 
  beacon_provisioned = true;
  print_hex(" fmdn_service_data: ", fmdn_service_data, 34);
  //fmdn_adv_set_stop();
-     fmdn_adv_set_setup();
+     //fmdn_adv_set_setup();
     
 
      //uint8_t rsp_buf[1+1+8];
@@ -2314,7 +2317,7 @@ static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_
     //uint8_t secp_mod_res[FP_FMDN_STATE_EID_LEN];
     size_t auth_data_buf_len = 0;
     bool result =false;
-
+NRF_LOG_INFO("ephemeral_identity_key_clear_handle@@@\n");
     memcpy(auth_seg,data+2,FP_FMDN_AUTH_SEG_LEN);
     memset(&auth_data, 0, sizeof(auth_data));
     auth_data.Prandom_nonce = random_nonce;
@@ -2323,8 +2326,8 @@ static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_
     auth_data.add_data = (data + 2 + FP_FMDN_AUTH_SEG_LEN);
 
     auth_data_encode(auth_data_buf,&auth_data,&auth_data_buf_len);
-    print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
-    print_hex(" auth_segget ", auth_seg, 8);
+    //print_hex(" auth_data_buf1: ", auth_data_buf, auth_data_buf_len);
+    //print_hex(" auth_segget ", auth_seg, 8);
     result = account_key_find_iterator(auth_data_buf,auth_data_buf_len,auth_seg);
 
     NRF_LOG_INFO("ephemeral_identity_key_clear_handle result %x\n",result);
@@ -2369,9 +2372,9 @@ static int ephemeral_identity_key_clear_handle(uint8_t *data,uint16_t len,uint8_
      memset(fmdn_eid,0,32);
      
      fmdn_adv_set_stop();
-     beacon_provisioned = false;
+     //beacon_provisioned = false;
 
-     rsp_buf[0] = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_SET;
+     rsp_buf[0] = BEACON_ACTIONS_EPHEMERAL_IDENTITY_KEY_CLEAR;
      rsp_buf[1] = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
      auth_data.data_len = EPHEMERAL_IDENTITY_KEY_SET_RSP_PAYLOAD_LEN;
      auth_data.add_data = NULL;
